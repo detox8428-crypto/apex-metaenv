@@ -1,0 +1,60 @@
+spec_version: 1
+name: screen-task-env
+type: rl-environment
+runtime: local
+port: 8000
+description: "OpenEnv Environment for GUI Interaction Learning with Notepad"
+
+actions:
+  - name: click
+    description: "Click at specified screen coordinates"
+    parameters:
+      - name: x
+        type: integer
+        description: "X coordinate"
+      - name: y
+        type: integer
+        description: "Y coordinate"
+  
+  - name: type
+    description: "Type text into focused element"
+    parameters:
+      - name: text
+        type: string
+        description: "Text to type"
+  
+  - name: hotkey
+    description: "Press keyboard hotkey combination"
+    parameters:
+      - name: keys
+        type: string
+        description: "Keys combination (e.g., 'ctrl+a')"
+  
+  - name: submit
+    description: "Submit/complete task"
+
+observations:
+  - name: screenshot_b64
+    type: string
+    description: "Current screenshot as base64 encoded PNG"
+  
+  - name: task
+    type: string
+    description: "Natural language task description"
+  
+  - name: last_action_result
+    type: string
+    description: "Feedback from last action"
+  
+  - name: step_num
+    type: integer
+    description: "Current step in episode"
+
+rewards:
+  sparse: true
+  values: [0.0, 1.0]
+  description: "1.0 for task completion, 0.0 otherwise"
+
+episodes:
+  max_steps: 50
+  reset_between_episodes: true
