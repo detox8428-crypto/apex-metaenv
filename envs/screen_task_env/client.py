@@ -1,13 +1,15 @@
-"""HTTP Client for Screen Task Environment"""
+"""HTTP Client for Screen Task Environment using OpenEnv HTTPEnvClient"""
 
-import requests
-import json
-from typing import Tuple
+from typing import Dict, Any
+from openenv.core.http_env_client import HTTPEnvClient
 from .models import ScreenAction, ScreenObservation, ScreenState
 
 
-class ScreenTaskEnvClient:
-    """Synchronous HTTP client for Screen Task Environment"""
+class ScreenTaskEnv(HTTPEnvClient):
+    """
+    OpenEnv-compatible HTTP client for Screen Task Environment.
+    Uses WebSocket under the hood via HTTPEnvClient base class.
+    """
 
     def __init__(self, server_url: str = "http://localhost:8000"):
         """
@@ -16,113 +18,64 @@ class ScreenTaskEnvClient:
         Args:
             server_url: Base URL of the environment server
         """
-        self.server_url = server_url.rstrip("/")
-        self.session = requests.Session()
+        super().__init__(server_url)
 
-    def reset(self) -> ScreenObservation:
+    def _step_payload(self, action: ScreenAction) -> Dict[str, Any]:
         """
-        Reset the environment
-        
-        Returns:
-            Initial observation
-        """
-        try:
-            response = self.session.post(f"{self.server_url}/reset")
-            response.raise_for_status()
-            
-            data = response.json()
-            obs_data = data["observation"]
-            
-            observation = ScreenObservation(
-                screenshot_b64=obs_data["screenshot_b64"],
-                task=obs_data["task"],
-                last_action_result=obs_data["last_action_result"],
-                step_num=obs_data["step_num"]
-            )
-            return observation
-            
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"Failed to reset environment: {e}")
-
-    def step(self, action: ScreenAction) -> Tuple[ScreenObservation, float, bool]:
-        """
-        Execute an action in the environment
+        Convert ScreenAction to step payload dict
         
         Args:
-            action: ScreenAction to take
+            action: ScreenAction to serialize
             
         Returns:
-            (observation, reward, done): Tuple of observation, reward, and episode end flag
+            Dictionary with action fields for server
         """
-        try:
-            payload = {
-                "action": {
-                    "action_type": action.action_type,
-                    "x": action.x,
-                    "y": action.y,
-                    "text": action.text,
-                    "keys": action.keys
-                }
-            }
-            
-            response = self.session.post(
-                f"{self.server_url}/step",
-                json=payload
-            )
-            response.raise_for_status()
-            
-            data = response.json()
-            obs_data = data["observation"]
-            
-            observation = ScreenObservation(
-                screenshot_b64=obs_data["screenshot_b64"],
-                task=obs_data["task"],
-                last_action_result=obs_data["last_action_result"],
-                step_num=obs_data["step_num"]
-            )
-            
-            reward = data["reward"]
-            done = data["done"]
-            
-            return observation, reward, done
-            
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"Failed to step environment: {e}")
+        return {
+            "action_type": action.action_type,
+            "x": action.x,
+            "y": action.y,
+            "text": action.text,
+            "keys": action.keys
+        }
 
-    def get_state(self) -> ScreenState:
+    def _parse_result(self, payload: Dict[str, Any]) -> ScreenObservation:
         """
-        Get current environment state
+        Parse server step response into ScreenObservation
         
+        Args:
+            payload: Response payload from /step endpoint
+            
         Returns:
-            Current ScreenState
+            ScreenObservation object
         """
-        try:
-            response = self.session.get(f"{self.server_url}/state")
-            response.raise_for_status()
-            
-            data = response.json()
-            state_data = data["state"]
-            
-            state = ScreenState(
-                task_id=state_data["task_id"],
-                task_description=state_data["task_description"],
-                app_handle=state_data.get("app_handle"),
-                is_running=state_data["is_running"]
-            )
-            return state
-            
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"Failed to get state: {e}")
+        obs_data = payload.get("observation", {})
+        
+        return ScreenObservation(
+            screenshot_b64=obs_data.get("screenshot_b64", ""),
+            task=obs_data.get("task", ""),
+            last_action_result=obs_data.get("last_action_result", ""),
+            step_num=obs_data.get("step_num", 0)
+        )
 
-    def close(self):
-        """Close the client session"""
-        if self.session:
-            self.session.close()
+    def _parse_state(self, payload: Dict[str, Any]) -> ScreenState:
+        """
+        Parse server state response into ScreenState
+        
+        Args:
+            payload: Response payload from /state endpoint
+            
+        Returns:
+            ScreenState object
+        """
+        state_data = payload.get("state", {})
+        
+        return ScreenState(
+            task_id=state_data.get("task_id", ""),
+            task_description=state_data.get("task_description", ""),
+            app_handle=state_data.get("app_handle"),
+            is_running=state_data.get("is_running", False)
+        )
 
-    def __enter__(self):
-        """Context manager entry"""
-        return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit"""
-        self.close()
+# For backward compatibility
+ScreenTaskEnvClient = ScreenTaskEnv

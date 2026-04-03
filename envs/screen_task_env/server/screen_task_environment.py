@@ -5,11 +5,17 @@ import time
 import base64
 import io
 import random
+import sys
 import pyautogui
 import mss
 import pyperclip
+import psutil
 from PIL import Image
 from typing import Tuple
+try:
+    import pygetwindow
+except ImportError:
+    pygetwindow = None
 from ..models import ScreenAction, ScreenObservation, ScreenState
 from .tasks import TASKS, get_task_by_id
 
@@ -42,16 +48,64 @@ class ScreenTaskEnvironment:
         self.state.task_description = self.current_task["description"]
         self.step_count = 0
         
-        # Launch Notepad
+        # Launch Notepad based on OS
         try:
-            self.notepad_process = subprocess.Popen(["notepad.exe"])
+            if sys.platform == 'win32':
+                self.notepad_process = subprocess.Popen(["notepad.exe"])
+                app_name = "Notepad"
+            else:
+                # Linux/Mac fallback
+                self.notepad_process = subprocess.Popen(["gedit"])
+                app_name = "gedit"
+            
             self.state.app_handle = self.notepad_process.pid
             self.state.is_running = True
         except Exception as e:
-            raise RuntimeError(f"Failed to launch Notepad: {e}")
+            raise RuntimeError(f"Failed to launch text editor: {e}")
         
-        # Wait for Notepad to fully load
-        time.sleep(1.5)
+        # Wait for window to appear (up to 5 seconds)
+        window_found = False
+        start_time = time.time()
+        
+        while time.time() - start_time < 5.0:
+            try:
+                if pygetwindow:
+                    # Try to find window by title
+                    if sys.platform == 'win32':
+                        windows = pygetwindow.getWindowsWithTitle("Notepad")
+                        window = windows[0] if windows else None
+                    else:
+                        windows = pygetwindow.getWindowsWithTitle("gedit")
+                        window = windows[0] if windows else None
+                    
+                    if window:
+                        # Focus window
+                        window.activate()
+                        time.sleep(0.2)
+                        
+                        # Click in text area to focus input
+                        try:
+                            pyautogui.click(window.left + window.width // 2, window.top + 150)
+                            time.sleep(0.3)
+                        except:
+                            pass
+                        
+                        window_found = True
+                        break
+            except:
+                pass
+            
+            time.sleep(0.2)
+        
+        # If window not found via pygetwindow, just wait and hope
+        if not window_found:
+            time.sleep(2.0)
+            # Try to click center of screen as fallback
+            try:
+                pyautogui.click(400, 300)
+                time.sleep(0.3)
+            except:
+                pass
         
         # Take initial screenshot
         screenshot_b64 = self._capture_screenshot()
@@ -158,17 +212,24 @@ class ScreenTaskEnvironment:
             try:
                 # Select all text in Notepad
                 pyautogui.hotkey("ctrl", "a")
-                time.sleep(0.1)
+                time.sleep(0.2)
                 
                 # Copy to clipboard
                 pyautogui.hotkey("ctrl", "c")
-                time.sleep(0.1)
+                time.sleep(0.3)
                 
-                # Get clipboard content
-                content = pyperclip.paste()
+                # Get clipboard content with retry logic
+                for attempt in range(3):
+                    try:
+                        content = pyperclip.paste()
+                        if content:
+                            break
+                    except:
+                        time.sleep(0.1)
                 
-                # Deselect (click somewhere in Notepad)
+                # Deselect (click somewhere in text area)
                 pyautogui.click(400, 300)
+                time.sleep(0.1)
                 
                 # Check if required text is in content
                 return check_value in content

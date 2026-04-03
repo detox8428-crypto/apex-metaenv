@@ -22,7 +22,10 @@ dependencies = [
     "pyautogui>=0.9.54",
     "mss>=9.0.1",
     "Pillow>=10.0.0",
-    "pyperclip>=1.8.2"
+    "pyperclip>=1.8.2",
+    "psutil>=5.9.0",
+    "pygetwindow>=0.0.9",
+    "openenv-core>=0.1.0"
 ]
 
 [project.optional-dependencies]
