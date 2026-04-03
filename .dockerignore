@@ -1,0 +1,82 @@
+# Docker build context exclusions
+# Files that should NOT be copied into the Docker image
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.env.local
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.coverage
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+docker-entrypoint.sh
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Documentation (optional - uncomment if large)
+# docs/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log
+logs/
+
+# Node modules (if using frontend tools)
+node_modules/
+npm-debug.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+temp/
+tmp/
+
+# Development files
+debug_*.py
+test_*.py
+DEVELOPMENT_SUMMARY.md
+PHASE_4_SUMMARY.md
+GENERATION_REPORT.md
+
+# Docker-specific
+docker/
+apex-docker/

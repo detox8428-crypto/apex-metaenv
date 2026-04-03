@@ -1,0 +1,126 @@
+name: apex-environment
+version: "1.0.0"
+description: |
+  APEX (Autonomous Productivity EXecutor)
+  
+  A real-world simulation environment for training and evaluating AI agents on 
+  productivity tasks: email management, meeting scheduling, multilingual translation, 
+  and gesture-based interactions.
+
+author: APEX Team
+license: MIT
+
+environment_api:
+  version: "1.0"
+  
+  reset:
+    description: Reset environment to initial state
+    returns:
+      type: Observation
+      description: Initial observation
+  
+  step:
+    description: Execute one action in the environment
+    parameters:
+      action:
+        type: Union[EmailAction, MeetingAction, TranslationAction, GestureAction, NoOpAction]
+    returns:
+      observation: Observation
+      reward: float
+      done: bool
+      truncated: bool
+      info: dict
+
+observation_space:
+  type: Observation
+  description: Complete environment state observation
+
+action_space:
+  type: Union[EmailAction, MeetingAction, TranslationAction, GestureAction, NoOpAction]
+  description: All supported action types
+
+reward_space:
+  type: float
+  range: [-1.0, 1.0]
+  description: |
+    10-component reward system:
+    - action_success (25%)
+    - task_progress (20%)
+    - parameter_quality (10%)
+    - temporal_efficiency (8%)
+    - context_awareness (8%)
+    - efficiency_penalty (8%)
+    - error_penalty (5%)
+    - language_accuracy (10%)
+    - consistency_bonus (4%)
+    - state_stability (2%)
+
+tasks:
+  - id: email_management
+    name: Email Management
+    description: Send 3 well-crafted emails to different recipients
+    difficulty: easy
+    max_steps: 100
+    grader: EmailTaskGrader
+  
+  - id: meeting_scheduling
+    name: Meeting Scheduling
+    description: Schedule 3 meetings with different attendee groups
+    difficulty: medium
+    max_steps: 150
+    grader: MeetingTaskGrader
+  
+  - id: multilingual_translation
+    name: Multilingual Translation
+    description: Translate content across multiple language families
+    difficulty: hard
+    max_steps: 100
+    grader: TranslationTaskGrader
+
+deployment:
+  type: docker
+  port: 8000
+  requirements:
+    memory: "2Gb"
+    vcpu: 2
+    timeout_seconds: 1200
+
+# Configuration (separate from OpenEnv spec)
+server:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+
+inference:
+  api_base_url: "http://localhost:8000"
+  model_name: "gpt-3.5-turbo"
+
+environment:
+  max_steps_per_episode: 100
+  seed: 42
+
+# State Configuration
+state:
+  max_history: 1000
+  compress_history: false
+  save_interval: 100
+
+# Security Configuration
+security:
+  enable_cors: true
+  cors_origins: ["*"]
+  max_request_size: 1048576  # 1MB
+  rate_limit: 1000
+
+# Database Configuration (if needed for future)
+database:
+  type: "sqlite"
+  path: "./apex.db"
+  pool_size: 10
+
+# Performance Configuration
+performance:
+  worker_count: 4
+  batch_size: 32
+  cache_enabled: true
+  cache_ttl: 3600

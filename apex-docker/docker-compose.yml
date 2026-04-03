@@ -1,0 +1,51 @@
+version: '3.9'
+
+services:
+  apex:
+    build:
+      context: ../
+      dockerfile: apex-docker/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    
+    container_name: apex-app
+    image: apex-app:latest
+    
+    ports:
+      - "8000:8000"
+    
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - LOG_LEVEL=info
+    
+    volumes:
+      - apex-logs:/app/logs
+      - ../apex_env:/app/apex_env
+    
+    working_dir: /app
+    command: python run_server.py
+    
+    restart: unless-stopped
+    
+    networks:
+      - apex-isolated-net
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    labels:
+      container_type: "apex-environment"
+      isolated: "true"
+
+volumes:
+  apex-logs:
+    driver: local
+
+networks:
+  apex-isolated-net:
+    driver: bridge

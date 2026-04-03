@@ -1,0 +1,43 @@
+# APEX Environment - Docker Compose Configuration
+
+version: '3.8'
+
+services:
+  apex-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    container_name: apex-env-api
+    
+    ports:
+      - "8000:8000"
+    
+    environment:
+      - LOG_LEVEL=info
+      - PYTHONUNBUFFERED=1
+    
+    volumes:
+      - ./:/app
+    
+    restart: unless-stopped
+    
+    networks:
+      - apex-network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  apex-network:
+    driver: bridge
+
+# Usage:
+#   docker-compose up          # Start service
+#   docker-compose down        # Stop service
+#   docker-compose logs -f     # View logs
+#   docker-compose ps          # Show running services

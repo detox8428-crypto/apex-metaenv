@@ -1,0 +1,56 @@
+# APEX Environment - Standalone Docker Image
+# Production-ready with email integration support
+# Build: docker build -f Dockerfile.apex.standalone -t apex:latest .
+# Run: docker run -p 8000:8000 -e EMAIL_PROVIDER=gmail -e GMAIL_EMAIL=... apex:latest
+
+FROM python:3.13-slim
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    API_HOST=0.0.0.0 \
+    API_PORT=8000
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install -r requirements.txt
+
+# Copy APEX environment
+COPY apex_env/ ./apex_env/
+
+# Copy core modules
+COPY server.py .
+COPY run_server.py .
+COPY inference.py .
+COPY openenv.yaml .
+COPY email_setup_guide.py .
+
+# Create non-root user for security
+RUN useradd -m -u 1000 apex && \
+    chown -R apex:apex /app
+
+USER apex
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose API port
+EXPOSE 8000
+
+# Default command
+CMD ["python", "run_server.py"]
