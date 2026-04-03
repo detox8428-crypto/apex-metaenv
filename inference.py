@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-OpenEnv Inference - Email Triage Agent
+OpenEnv Inference - Code Solver Agent
 
-This script runs an LLM-based agent that triages emails.
+This script runs an LLM-based agent that solves coding problems.
 Used by hackathon dashboard for agent evaluation.
 
 Output format:
@@ -15,6 +15,7 @@ import os
 import sys
 import json
 import logging
+import re
 from typing import Optional
 
 # Get environment variables (injected by dashboard)
@@ -22,7 +23,7 @@ API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
 ENV_URL = os.getenv("ENV_URL", "http://localhost:8000")
-MAX_STEPS = 5
+MAX_STEPS = 3
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 # Import environment classes
 sys.path.insert(0, os.path.dirname(__file__))
-from envs.email_triage_env import EmailTriageEnv, EmailTriageAction
+from envs.code_solver_env import CodeSolverEnv, CodeSolverAction
 
 # Try to import OpenAI, fallback to requests if not available
 try:
@@ -41,7 +42,7 @@ except ImportError:
     import requests as openai_requests
 
 
-def call_llm(prompt: str, max_tokens: int = 200) -> str:
+def call_llm(prompt: str, max_tokens: int = 1000) -> str:
     """Call LLM with prompt and return response"""
     if not HAS_OPENAI:
         # Fallback: use requests directly
@@ -55,13 +56,13 @@ def call_llm(prompt: str, max_tokens: int = 200) -> str:
                     "max_tokens": max_tokens,
                     "temperature": 0.1
                 },
-                timeout=10
+                timeout=30
             )
             response.raise_for_status()
             return response.json()["choices"][0]["message"]["content"]
         except Exception as e:
-            logger.warning(f"LLM request failed: {e}, using fallback response")
-            return '{"priority": "normal", "category": "support", "action": "reply"}'
+            logger.warning(f"LLM request failed: {e}, using simple solution")
+            return "def solution():\n    pass"
     
     try:
         client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
@@ -73,117 +74,115 @@ def call_llm(prompt: str, max_tokens: int = 200) -> str:
         )
         return response.choices[0].message.content
     except Exception as e:
-        logger.warning(f"LLM call failed: {e}, using fallback response")
-        return '{"priority": "normal", "category": "support", "action": "reply"}'
+        logger.warning(f"LLM call failed: {e}, using simple solution")
+        return "def solution():\n    pass"
 
 
-def extract_json_from_response(text: str) -> Optional[dict]:
-    """Extract JSON from LLM response"""
-    try:
-        # Try direct JSON parsing
-        return json.loads(text)
-    except json.JSONDecodeError:
-        # Try to find JSON in text
-        import re
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group())
-            except:
-                pass
+def extract_code_from_response(text: str) -> str:
+    """Extract Python code from LLM response"""
+    # Try to find code block with python marker
+    match = re.search(r'```python\s*(.*?)\s*```', text, re.DOTALL)
+    if match:
+        return match.group(1)
     
-    return None
+    # Try to find any code block
+    match = re.search(r'```\s*(.*?)\s*```', text, re.DOTALL)
+    if match:
+        return match.group(1)
+    
+    # If no code block, return the whole response (might be raw code)
+    return text.strip()
 
 
-def run_episode(task_name: str, max_steps: int = 5) -> dict:
+def run_episode(difficulty: str) -> dict:
     """
-    Run a single episode of email triage
+    Run a single episode of code solving
     
     Args:
-        task_name: Name of the task (e.g., "easy_triage", "medium_triage", "hard_triage")
-        max_steps: Maximum steps per episode
+        difficulty: Problem difficulty (easy, medium, hard)
         
     Returns:
         Dictionary with episode statistics
     """
     rewards = []
+    task_name = f"{difficulty}-solver"
     
     try:
-        with EmailTriageEnv(base_url=ENV_URL).sync() as env:
-            # Reset environment
-            obs = env.reset()
-            
-            # [START] marker
-            print(f"[START] task={task_name} env=email-triage-env model={MODEL_NAME}")
-            
-            for step in range(1, max_steps + 1):
-                # Build prompt for LLM
-                prompt = f"""You are an expert email triage agent. Analyze the email and make three decisions:
-1. Priority: urgent, high, normal, or low
-2. Category: bug, feature, billing, support, or spam
-3. Action: reply, escalate, archive, delete, or forward
+        env = CodeSolverEnv(base_url=ENV_URL)
+        
+        # Reset environment with specific difficulty
+        obs = env.reset(difficulty=difficulty)
+        
+        # [START] marker
+        print(f"[START] task={task_name} env=code-solver-env model={MODEL_NAME}")
+        
+        for step in range(1, MAX_STEPS + 1):
+            # Build prompt for LLM
+            prompt = f"""You are a coding expert. Solve this programming problem:
 
-Email Subject: {obs.subject}
-Email Body: {obs.body}
-From: {obs.sender}
+Problem: {obs.title}
+Difficulty: {obs.difficulty}
 
-Respond with ONLY a JSON object (no other text):
-{{"priority": "...", "category": "...", "action": "...", "reasoning": "..."}}"""
-                
-                # Call LLM
-                raw_response = call_llm(prompt)
-                
-                # Parse response
-                parsed = extract_json_from_response(raw_response)
-                
-                if parsed is None:
-                    # Fallback to defaults
-                    action = EmailTriageAction(
-                        priority="normal",
-                        category="support",
-                        action="reply",
-                        reasoning="LLM response parsing failed"
-                    )
-                else:
-                    action = EmailTriageAction(
-                        priority=parsed.get("priority", "normal"),
-                        category=parsed.get("category", "support"),
-                        action=parsed.get("action", "reply"),
-                        reasoning=parsed.get("reasoning", "")
-                    )
-                
-                # Execute step
-                obs, reward, done = env.step(action)
-                rewards.append(reward)
-                
-                # [STEP] marker
-                action_str = f"priority={action.priority},category={action.category},action={action.action}"
-                feedback = obs.feedback or "null"
-                print(f"[STEP] step={step} action={action_str} reward={reward:.2f} done={str(done).lower()} error={json.dumps(feedback)}")
-                
-                if done:
-                    break
+Description:
+{obs.description}
+
+Function Signature:
+{obs.function_signature}
+
+Examples:
+{obs.examples}
+
+Constraints:
+{obs.constraints}
+
+Write ONLY the complete Python function that solves this problem. 
+Do NOT include any explanations, test code, or anything else.
+Start directly with the function definition.
+
+If you provide code in a code block (```python ... ```), only the code inside will be used."""
             
-            # Determine success (at least one step with reward >= 0.8)
-            success = any(r >= 0.8 for r in rewards)
-            rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+            # Call LLM
+            raw_response = call_llm(prompt)
             
-            # [END] marker
-            print(f"[END] success={str(success).lower()} steps={len(rewards)} rewards={rewards_str}")
+            # Extract code from response
+            code = extract_code_from_response(raw_response)
             
-            return {
-                "task": task_name,
-                "success": success,
-                "steps": len(rewards),
-                "rewards": rewards,
-                "avg_reward": sum(rewards) / len(rewards) if rewards else 0.0
-            }
+            # Execute step
+            obs, reward, done = env.step(CodeSolverAction(code=code))
+            rewards.append(reward)
             
+            # Format action string (shortened for output)
+            action_summary = f"write_code({obs.passed_cases}/{obs.total_cases}_tests)"
+            
+            # [STEP] marker
+            error_msg = obs.error_message if obs.error_message else "null"
+            print(f"[STEP] step={step} action={action_summary} reward={reward:.2f} done={str(done).lower()} error={json.dumps(error_msg)}")
+            
+            if done:
+                break
+        
+        # Determine success (reward >= 0.8 means at least 80% tests pass)
+        success = any(r >= 0.8 for r in rewards)
+        rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+        
+        # [END] marker
+        print(f"[END] success={str(success).lower()} steps={len(rewards)} rewards={rewards_str}")
+        
+        return {
+            "task": task_name,
+            "difficulty": difficulty,
+            "success": success,
+            "steps": len(rewards),
+            "rewards": rewards,
+            "avg_reward": sum(rewards) / len(rewards) if rewards else 0.0
+        }
+        
     except Exception as e:
-        logger.error(f"Episode failed: {e}")
+        logger.error(f"Episode {task_name} failed: {e}", exc_info=True)
         print(f"[END] success=false steps=0 rewards=")
         return {
             "task": task_name,
+            "difficulty": difficulty,
             "success": False,
             "steps": 0,
             "rewards": [],
@@ -193,32 +192,34 @@ Respond with ONLY a JSON object (no other text):
 
 def main():
     """Main entry point - run agent on environment"""
-    logger.info(f"OpenEnv Inference - Email Triage")
+    logger.info(f"OpenEnv Inference - Code Solver")
     logger.info(f"Environment URL: {ENV_URL}")
     logger.info(f"Model: {MODEL_NAME}")
     logger.info(f"API Base: {API_BASE_URL}")
     
     all_results = []
     
-    # Run 3 different tasks (easy, medium, hard)
-    tasks = ["easy_triage", "medium_triage", "hard_triage"]
+    # Run 3 episodes with different difficulties
+    difficulties = ["easy", "medium", "hard"]
     
-    for task_name in tasks:
-        result = run_episode(task_name, max_steps=MAX_STEPS)
+    for difficulty in difficulties:
+        result = run_episode(difficulty)
         all_results.append(result)
     
     # Summary
     total_success = sum(1 for r in all_results if r["success"])
     avg_reward = sum(r.get("avg_reward", 0.0) for r in all_results) / len(all_results)
+    total_steps = sum(r.get("steps", 0) for r in all_results)
     
     logger.info(f"\n{'='*60}")
     logger.info(f"Summary:")
-    logger.info(f"  Tasks completed: {len(all_results)}")
+    logger.info(f"  Episodes: {len(all_results)}")
     logger.info(f"  Successful: {total_success}/{len(all_results)}")
+    logger.info(f"  Total steps: {total_steps}")
     logger.info(f"  Average reward: {avg_reward:.2f}")
     logger.info(f"{'='*60}")
     
-    # Exit with success code if at least one task succeeded
+    # Exit with success code if at least one episode succeeded
     sys.exit(0 if total_success > 0 else 1)
 
 
