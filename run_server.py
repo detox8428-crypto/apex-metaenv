@@ -1,53 +1,57 @@
 #!/usr/bin/env python3
 """
-FastAPI Server Startup Script
+APEX Code Solver FastAPI Server Startup
 
-Launcher for the APEX Environment API server.
 Run with: python run_server.py
 """
 
 import sys
 import os
-import uvicorn
 from pathlib import Path
 
 def main():
-    """Run the server"""
-    # Get project root
+    """Run the FastAPI server"""
+    # Add project root to path
     project_root = Path(__file__).parent
     sys.path.insert(0, str(project_root))
-    
-    # Load configuration
-    try:
-        from config import ConfigLoader
-        config = ConfigLoader.load_config()
-        server_config = ConfigLoader.get_server_config(config)
-    except Exception as e:
-        print(f"Warning: Failed to load config: {e}")
-        print("Using default configuration")
-        server_config = {"host": "0.0.0.0", "port": 8000}
-    
-    # Extract server config
-    host = server_config.get("host", "0.0.0.0")
-    port = server_config.get("port", 8000)
-    
-    # Import app
-    try:
-        from server import app
-    except ImportError as e:
-        print(f"Error importing server: {e}")
-        print("Make sure server.py is in the same directory")
-        sys.exit(1)
-    
-    print("\n" + "=" * 70)
-    print("APEX ENVIRONMENT - FastAPI Server")
-    print("=" * 70)
-    print(f"Starting server...")
-    print(f"Host: {host}")
-    print(f"Port: {port}")
+
+    import uvicorn
+    from envs.code_solver_env.server.app import app
+
+    # Configuration
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", 8000))
+    reload = os.getenv("RELOAD", "false").lower() == "true"
+    workers = int(os.getenv("WORKERS", "1"))
+
+    print("\n" + "=" * 80)
+    print("APEX CODE SOLVER - FastAPI Server v2.0.0")
+    print("=" * 80)
+    print(f"Host: {host}:{port}")
+    print(f"Reload: {reload}")
+    print(f"Workers: {workers}")
     print()
     print("📖 Interactive docs: http://localhost:{}/docs".format(port))
-    print("📖 Alternative docs: http://localhost:{}/redoc".format(port))
+    print("📖 ReDoc: http://localhost:{}/redoc".format(port))
+    print("📖 API Manifest: http://localhost:{}/manifest".format(port))
+    print()
+    print("Press CTRL+C to stop server")
+    print("=" * 80 + "\n")
+
+    # Run with uvicorn
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        reload=reload,
+        workers=workers,
+        log_level="info"
+    )
+
+
+if __name__ == "__main__":
+    main()
+
     print()
     print("Environment variables:")
     print(f"  API_BASE_URL: {os.getenv('API_BASE_URL', 'not set')}")
