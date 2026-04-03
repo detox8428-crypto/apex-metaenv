@@ -1,53 +1,167 @@
-name: apex-environment
-version: "1.0.0"
+name: code_solver
+version: "2.0.0"
+spec: openenv/v1
+
 description: |
-  APEX (Autonomous Productivity EXecutor)
-  
-  A real-world simulation environment for training and evaluating AI agents on 
-  productivity tasks: email management, meeting scheduling, multilingual translation, 
-  and gesture-based interactions.
+  APEX Code Solver - An OpenEnv-compliant RL environment for training agents
+  to solve LeetCode-style coding problems. Agents receive problems with clear
+  specifications and test cases, submit Python solutions, and receive rewards
+  based on test case pass rates.
 
-author: APEX Team
+author: GitHub Copilot
 license: MIT
+repository: https://github.com/apex-code-solver
 
-environment_api:
-  version: "1.0"
-  
-  reset:
-    description: Reset environment to initial state
-    returns:
-      type: Observation
-      description: Initial observation
-  
-  step:
-    description: Execute one action in the environment
-    parameters:
-      action:
-        type: Union[EmailAction, MeetingAction, TranslationAction, GestureAction, NoOpAction]
-    returns:
-      observation: Observation
-      reward: float
-      done: bool
-      truncated: bool
-      info: dict
+environment:
+  name: CodeSolverEnvironment
+  class: CodeSolverEnvironment
+  module: envs.code_solver_env.server.code_solver_environment
+  version: "2.0.0"
 
-observation_space:
-  type: Observation
-  description: Complete environment state observation
+api:
+  version: "openenv/v1"
+  host: "0.0.0.0"
+  port: 8000
+  docs_endpoint: "/docs"
+  manifest_endpoint: "/manifest"
 
-action_space:
-  type: Union[EmailAction, MeetingAction, TranslationAction, GestureAction, NoOpAction]
-  description: All supported action types
+endpoints:
+  reset: "POST /reset"
+  step: "POST /step"
+  step_stream: "POST /step/stream"
+  state: "GET /state"
+  websocket: "WS /ws/{session_id}"
+  health: "GET /health"
+  manifest: "GET /manifest"
+  problems: "GET /problems"
+  leaderboard: "GET /leaderboard"
+  sessions: "GET /sessions"
 
-reward_space:
-  type: float
-  range: [-1.0, 1.0]
+action:
+  type: CodeAction
+  schema:
+    code: str
+    session_id: Optional[str]
   description: |
-    10-component reward system:
-    - action_success (25%)
-    - task_progress (20%)
-    - parameter_quality (10%)
-    - temporal_efficiency (8%)
+    Agent submits Python code to solve the current problem.
+    Code must define a function matching the problem's function_signature.
+
+observation:
+  type: ProblemObservation
+  schema:
+    problem_id: str
+    title: str
+    description: str
+    function_signature: str
+    examples: str
+    constraints: str
+    difficulty: Literal[easy, medium, hard]
+    test_results: list[TestCaseResult]
+    passed_cases: int
+    total_cases: int
+    error_message: Optional[str]
+    step_count: int
+    max_steps: int
+  description: |
+    Complete problem statement with test results from last execution.
+    Agents must understand the problem and use feedback to improve solutions.
+
+reward:
+  type: float
+  range: [0.0, 1.0]
+  components:
+    primary_reward:
+      type: float
+      formula: "passed_cases / total_cases"
+      weight: 1.0
+    efficiency_bonus:
+      type: float
+      formula: "+0.1 if all_tests_pass and time < 2s"
+      weight: 0.1
+    attempt_penalty:
+      type: float
+      formula: "-0.02 * (step_count - 1)"
+      weight: 0.02
+  description: |
+    Composite reward signal with primary reward (test pass rate) as dominant signal.
+    Secondary signals encourage fast and efficient solutions.
+
+episode:
+  max_steps: 10
+  termination:
+    - all_tests_pass: "Agent solved the problem (all test cases pass)"
+    - max_steps_reached: "Agent exceeded step limit"
+  truncation:
+    - max_steps_reached: "Episode reaches max_steps without solving"
+
+problems:
+  canonical:
+    count: 9
+    difficulties: [easy, medium, hard]
+    categories:
+      - Two Sum (arrays, hashing)
+      - Palindrome Check (strings)
+      - FizzBuzz (iteration)
+      - Longest Substring (sliding window)
+      - Valid Parentheses (stacks)
+      - Maximum Subarray (dynamic programming)
+      - Merge K Lists (heaps, merging)
+      - Trapping Rain Water (two pointers)
+      - Word Break (DP, backtracking)
+  
+  procedural:
+    enabled: true
+    generators:
+      - two_sum: Randomize array size, value range, duplicates
+      - palindrome: Randomize string length, character set
+      - sorting: Randomize array size, direction, stability
+      - string_search: Randomize pattern length, occurrences
+      - math: Fibonacci, primes, factorials with variations
+      - tree: Binary tree operations with randomized structures
+      - dp: Coin change, knapsack, edit distance with randomized weights
+    seed_control: true
+
+sessions:
+  timeout_minutes: 30
+  multi_session: true
+  storage: in_memory
+  cleanup: automatic
+
+transport:
+  protocols:
+    - http: Stateless request/response
+    - websocket: Persistent connection with streaming
+  features:
+    - streaming: Server-Sent Events for test result streaming
+    - persistence: WebSocket maintains session across messages
+    - multiplexing: Multiple concurrent sessions
+
+docker:
+  image: "code-solver:latest"
+  base: "python:3.11-slim"
+  port: 8000
+  health_check:
+    endpoint: "/health"
+    interval: "30s"
+    timeout: "10s"
+  scaling:
+    replicas: 3  # default
+    max_replicas: 8  # with docker-compose.scale.yml
+  resources:
+    cpu: "2"
+    memory: "1G"
+    max_file_size: "0"  # No file writes allowed
+    max_processes: "1"  # Prevent subprocess spawning
+    max_runtime: "10s"  # Per-step timeout
+
+deployment:
+  platforms:
+    - Docker (docker-compose.yml)
+    - Docker Swarm (docker-compose.scale.yml)
+    - HuggingFace Spaces (app_gradio.py)
+  load_balancer: nginx
+  persistence: none (stateless sessions with client-side session tracking)
+
     - context_awareness (8%)
     - efficiency_penalty (8%)
     - error_penalty (5%)
