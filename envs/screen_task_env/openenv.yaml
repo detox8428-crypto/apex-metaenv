@@ -1,0 +1,19 @@
+spec_version: 1
+name: screen-task-env
+description: "RL environment where an agent interacts with Windows GUI (Notepad) using screenshots and natural language tasks"
+type: rl-environment
+runtime: local
+app: server/app.py
+port: 8000
+
+actions:
+  - name: click
+  - name: type
+  - name: hotkey
+  - name: submit
+
+reward:
+  type: sparse
+  range: [0.0, 1.0]
+
+max_steps: 50
