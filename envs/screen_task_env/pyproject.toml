@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "screen-task-env"
+version = "0.1.0"
+description = "OpenEnv Environment for GUI Interaction Learning - Peekaboo inspired"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "APEX-META Team"}
+]
+keywords = ["openenv", "reinforcement-learning", "gui", "automation"]
+
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.0.0",
+    "requests>=2.31.0",
+    "pyautogui>=0.9.54",
+    "mss>=9.0.1",
+    "Pillow>=10.0.0",
+    "pyperclip>=1.8.2"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0"
+]
+
+[tool.setuptools]
+packages = ["screen_task_env"]
+
+[tool.black]
+line-length = 100
+target-version = ['py39']
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
