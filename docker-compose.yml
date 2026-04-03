@@ -1,43 +1,90 @@
-# APEX Environment - Docker Compose Configuration
-
 version: '3.8'
 
 services:
-  apex-api:
+  nginx:
+    image: nginx:latest
+    container_name: apex-nginx
+    ports:
+      - "8000:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - apex-api-1
+      - apex-api-2
+      - apex-api-3
+    networks:
+      - apex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  apex-api-1:
     build:
       context: .
       dockerfile: Dockerfile
-    
-    container_name: apex-env-api
-    
-    ports:
-      - "8000:8000"
-    
     environment:
-      - LOG_LEVEL=info
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REPLICA_ID=1
       - PYTHONUNBUFFERED=1
-    
-    volumes:
-      - ./:/app
-    
-    restart: unless-stopped
-    
     networks:
       - apex-network
-    
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 5s
+    restart: unless-stopped
+    expose:
+      - "8000"
+
+  apex-api-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REPLICA_ID=2
+      - PYTHONUNBUFFERED=1
+    networks:
+      - apex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    expose:
+      - "8000"
+
+  apex-api-3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REPLICA_ID=3
+      - PYTHONUNBUFFERED=1
+    networks:
+      - apex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    expose:
+      - "8000"
 
 networks:
   apex-network:
     driver: bridge
 
-# Usage:
-#   docker-compose up          # Start service
-#   docker-compose down        # Stop service
-#   docker-compose logs -f     # View logs
-#   docker-compose ps          # Show running services

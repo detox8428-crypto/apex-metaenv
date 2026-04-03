@@ -1,0 +1,218 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:latest
+    container_name: apex-nginx-prod
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - apex-api-1
+      - apex-api-2
+      - apex-api-3
+      - apex-api-4
+      - apex-api-5
+      - apex-api-6
+      - apex-api-7
+      - apex-api-8
+    networks:
+      - apex-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+
+  apex-api-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REPLICA_ID=1
+      - PYTHONUNBUFFERED=1
+    networks:
+      - apex-network
+    restart: always
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+  apex-api-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REPLICA_ID=2
+      - PYTHONUNBUFFERED=1
+    networks:
+      - apex-network
+    restart: always
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+  apex-api-3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REPLICA_ID=3
+      - PYTHONUNBUFFERED=1
+    networks:
+      - apex-network
+    restart: always
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+  apex-api-4:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REPLICA_ID=4
+      - PYTHONUNBUFFERED=1
+    networks:
+      - apex-network
+    restart: always
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+  apex-api-5:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REPLICA_ID=5
+      - PYTHONUNBUFFERED=1
+    networks:
+      - apex-network
+    restart: always
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+  apex-api-6:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REPLICA_ID=6
+      - PYTHONUNBUFFERED=1
+    networks:
+      - apex-network
+    restart: always
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+  apex-api-7:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REPLICA_ID=7
+      - PYTHONUNBUFFERED=1
+    networks:
+      - apex-network
+    restart: always
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+  apex-api-8:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REPLICA_ID=8
+      - PYTHONUNBUFFERED=1
+    networks:
+      - apex-network
+    restart: always
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+networks:
+  apex-network:
+    driver: bridge
