@@ -1,12 +1,15 @@
 """Code Solver Environment Implementation"""
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import random
 import subprocess
 import tempfile
 import json
-import sys
 from typing import Tuple, Dict, Any
-from ..models import CodeSolverAction, CodeSolverObservation, CodeSolverState
+from models import CodeSolverAction, CodeSolverObservation, CodeSolverState
 from .problems import PROBLEMS, get_problem_by_id, get_problems_by_difficulty
 
 
