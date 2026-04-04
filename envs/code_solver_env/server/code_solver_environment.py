@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional, Tuple
 from asyncio import Lock
 
 from models import (
-    CodeAction, ProblemObservation, TestCaseResult, 
+    CodeAction, ProblemObservation, TestCaseResult, CodeSolverObservation, CodeSolverState,
     EnvState, StepResponse, ResetResponse
 )
 from .sandbox import execute_code_sandboxed
@@ -408,55 +408,18 @@ class CodeSolverEnvironment:
             step_count=step_count,
             max_steps=max_steps
         )
-            user_code: Agent's solution code
-            func_sig: Function signature
-            test_input: Input dict
-            expected: Expected output
-            
-        Returns:
-            Python script string to execute
-        """
-        # Extract function name from signature
-        func_name = func_sig.split("(")[0].replace("def ", "").strip()
-
-        # Build argument list
-        arg_names = list(test_input.keys())
-        args_str = ", ".join(arg_names)
-        args_values = ", ".join(repr(test_input[name]) for name in arg_names)
-
-        # Create test script
-        script = f"""
-import json
-import sys
-
-# User code
-{user_code}
-
-# Run test
-try:
-    result = {func_name}({args_values})
-    if result == {repr(expected)}:
-        print(json.dumps(result))
-        sys.exit(0)
-    else:
-        sys.exit(1)
-except Exception as e:
-    print(f"Error: {{e}}", file=sys.stderr)
-    sys.exit(1)
-"""
-        return script
 
     def _create_error_observation(self, error_msg: str) -> CodeSolverObservation:
         """Create an error observation"""
         return CodeSolverObservation(
-            problem_id="",
-            title="",
-            description="",
+            problem_id="error",
+            title="Error",
+            description=error_msg,
             function_signature="",
             examples="",
             constraints="",
-            difficulty="",
-            test_results="",
+            difficulty="easy",
+            test_results=[],
             passed_cases=0,
             total_cases=0,
             error_message=error_msg

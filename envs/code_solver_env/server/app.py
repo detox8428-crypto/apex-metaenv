@@ -525,7 +525,3 @@ async def websocket_health():
         "active_websocket_connections": len(active_connections),
         "timestamp": datetime.utcnow().isoformat()
     }
-
-
-# Create the app instance
-app = create_app()

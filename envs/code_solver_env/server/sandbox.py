@@ -5,10 +5,18 @@ import subprocess
 import tempfile
 import json
 import sys
-import resource
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
+
+# Import resource module (POSIX only)
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
+    logger_temp = logging.getLogger(__name__)
+    logger_temp.warning("resource module not available (Linux/Mac only) - resource limits disabled")
 
 logger = logging.getLogger(__name__)
 
@@ -128,25 +136,32 @@ def set_resource_limits():
     - Memory: 256 MB
     - File size: 0 bytes (no writing)
     - Processes: 1 (no subprocess spawning)
+    
+    Note: Resource limits only work on POSIX systems (Linux/Mac).
+    On Windows, this function will log a warning and return without setting limits.
     """
+    if not HAS_RESOURCE:
+        logger.debug("Resource module not available - skipping resource limit configuration")
+        return
+    
     try:
         resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
-    except ValueError:
+    except (ValueError, AttributeError):
         logger.warning("Could not set CPU limit (may not be available on this platform)")
 
     try:
         resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
-    except ValueError:
+    except (ValueError, AttributeError):
         logger.warning("Could not set memory limit")
 
     try:
         resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
-    except ValueError:
+    except (ValueError, AttributeError):
         logger.warning("Could not set file size limit")
 
     try:
         resource.setrlimit(resource.RLIMIT_NPROC, (1, 1))
-    except ValueError:
+    except (ValueError, AttributeError):
         logger.warning("Could not set process limit")
 
 

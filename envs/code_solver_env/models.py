@@ -268,3 +268,67 @@ class LeaderboardResponse(BaseModel):
     problem_id: Optional[str] = None
     entries: list[LeaderboardEntry]
     count: int
+
+
+# ============================================================================
+# SOLVER-SPECIFIC MODELS (for external API compatibility)
+# ============================================================================
+
+class CodeSolverAction(BaseModel):
+    """Action for CodeSolver environment - agent submits Python code"""
+    code: str = Field(..., description="Python solution code to execute")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "code": "def two_sum(nums, target):\n    for i in range(len(nums)):\n        for j in range(i+1, len(nums)):\n            if nums[i] + nums[j] == target:\n                return [i, j]\n    return []"
+            }
+        }
+
+
+class CodeSolverObservation(BaseModel):
+    """Observation for CodeSolver environment - problem statement and results"""
+    problem_id: str = Field(..., description="Unique problem identifier")
+    title: str = Field(..., description="Problem title")
+    description: str = Field(..., description="Problem description")
+    function_signature: str = Field(..., description="Required function signature")
+    examples: str = Field(..., description="Input/output examples")
+    constraints: str = Field(..., description="Problem constraints")
+    difficulty: Literal["easy", "medium", "hard"] = Field(..., description="Problem difficulty level")
+    test_results: list[TestCaseResult] = Field(default_factory=list, description="Results from executed test cases")
+    passed_cases: int = Field(..., description="Number of test cases that passed")
+    total_cases: int = Field(..., description="Total number of test cases")
+    error_message: Optional[str] = Field(None, description="Error message if execution failed")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "problem_id": "p001",
+                "title": "Two Sum",
+                "description": "Given an array of integers...",
+                "function_signature": "def two_sum(nums, target):",
+                "examples": "Example 1: Input: [2,7,11,15], target=9 → Output: [0,1]",
+                "constraints": "2 <= len(nums) <= 10^4",
+                "difficulty": "easy",
+                "test_results": [{"case_index": 0, "passed": True, "error": None, "time_ms": 1.2}],
+                "passed_cases": 1,
+                "total_cases": 5,
+                "error_message": None
+            }
+        }
+
+
+class CodeSolverState(BaseModel):
+    """State for CodeSolver environment - current session state"""
+    problem_id: str = Field(..., description="Current problem identifier")
+    difficulty: Literal["easy", "medium", "hard"] = Field(..., description="Current problem difficulty")
+    attempts: int = Field(..., description="Number of attempts made on current problem")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "problem_id": "p001",
+                "difficulty": "easy",
+                "attempts": 2
+            }
+        }
