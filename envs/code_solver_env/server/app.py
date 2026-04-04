@@ -153,6 +153,34 @@ async def manifest():
 
 
 # ============================================================================
+# TASKS ENDPOINT
+# ============================================================================
+
+@app.get("/tasks")
+async def list_tasks():
+    """List available task templates for judges and automated testing."""
+    return {
+        "tasks": [
+            {
+                "id": "easy",
+                "difficulty": "easy",
+                "description": "Solve easy coding problems"
+            },
+            {
+                "id": "medium",
+                "difficulty": "medium",
+                "description": "Solve medium coding problems"
+            },
+            {
+                "id": "hard",
+                "difficulty": "hard",
+                "description": "Solve hard coding problems"
+            }
+        ]
+    }
+
+
+# ============================================================================
 # RESET ENDPOINT
 # ============================================================================
 
