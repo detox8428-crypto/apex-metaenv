@@ -39,9 +39,9 @@ class CodeSolverAgent:
             api_base_url: Base URL for LLM API (defaults to env var)
             env_url: URL for code solver environment server (default http://localhost:8000)
         """
-        self.model = model or os.getenv('MODEL_NAME', 'gpt-3.5-turbo')
+        self.model = model or os.getenv('MODEL_NAME', 'Qwen/Qwen2.5-Coder-32B-Instruct')
         self.api_key = api_key or os.getenv('HF_TOKEN', '')
-        self.api_base_url = api_base_url or os.getenv('API_BASE_URL', 'https://api-inference.huggingface.co/models')
+        self.api_base_url = api_base_url or os.getenv('API_BASE_URL', 'https://router.huggingface.co/v1')
         self.env_url = env_url or os.getenv('ENV_URL', 'http://localhost:8000')
         
         # State tracking
@@ -106,21 +106,20 @@ class CodeSolverAgent:
         logger.info(f"Generating solution for: {observation.get('title', 'Unknown')}")
         
         try:
-            # Try OpenAI API first (if using OpenAI models)
-            if 'gpt' in self.model.lower():
-                return self._generate_openai(prompt, temperature)
-            else:
-                # Use HF Inference API
-                return self._generate_huggingface(prompt, temperature)
+            # Use OpenAI-compatible API (works for both OpenAI and HF router)
+            return self._generate_openai(prompt, temperature)
         except Exception as e:
             logger.error(f"Error generating solution: {e}")
             return self._get_template_solution(observation)
 
     def _generate_openai(self, prompt: str, temperature: float) -> str:
-        """Generate code using OpenAI API."""
+        """Generate code using OpenAI API or HF Router API."""
         try:
-            import openai
-            client = openai.OpenAI(api_key=self.api_key)
+            from openai import OpenAI
+            client = OpenAI(
+                base_url=self.api_base_url,
+                api_key=self.api_key
+            )
             
             response = client.chat.completions.create(
                 model=self.model,
@@ -280,14 +279,19 @@ class CodeSolverAgent:
                     'info': {'error': 'No session'}
                 }
             
+            logger.debug(f"Submitting code to {self.env_url}/step")
+            logger.debug(f"Request body: code={len(code)} chars, session_id={self.session_id}")
+            
             response = requests.post(
                 f"{self.env_url}/step",
                 json={
-                    "action": {"code": code},
+                    "code": code,
                     "session_id": self.session_id
                 },
                 timeout=15
             )
+            
+            logger.debug(f"Response status: {response.status_code}")
             
             response.raise_for_status()
             result = response.json()
