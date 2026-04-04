@@ -249,8 +249,8 @@ class ProceduralProblemGenerator:
             {"input": {"nums": arr, "target": target}, "expected": sorted([i, j])}
         ]
 
-        # Add edge cases
-        test_cases.extend(self._generate_two_sum_edge_cases(arr[:10], target))
+        # Add edge cases from the full array
+        test_cases.extend(self._generate_two_sum_edge_cases(arr, target))
 
         problem_id = f"two_sum_v{self.seed}"
         return {
@@ -266,16 +266,25 @@ class ProceduralProblemGenerator:
             "source": "procedural"
         }
 
-    def _generate_two_sum_edge_cases(self, sample_arr: List[int], target: int) -> List[Dict]:
-        """Generate edge case test cases for two_sum"""
+    def _generate_two_sum_edge_cases(self, arr: List[int], target: int) -> List[Dict]:
+        """Generate edge case test cases for two_sum - only valid cases where answer exists"""
         cases = []
-        for i in range(min(5, len(sample_arr))):
-            for j in range(i + 1, min(5, len(sample_arr))):
-                if sample_arr[i] + sample_arr[j] == target:
-                    cases.append({
-                        "input": {"nums": sample_arr, "target": target},
-                        "expected": sorted([i, j])
-                    })
+        # Find all valid pairs in the full array
+        seen_pairs = set()
+        for i in range(len(arr)):
+            for j in range(i + 1, len(arr)):
+                if arr[i] + arr[j] == target:
+                    pair_key = tuple(sorted([i, j]))
+                    if pair_key not in seen_pairs:
+                        seen_pairs.add(pair_key)
+                        cases.append({
+                            "input": {"nums": arr, "target": target},
+                            "expected": list(pair_key)
+                        })
+                        if len(cases) >= 5:  # Limit to 5 edge cases
+                            return cases
+        
+        # If no pairs found in full array, return empty (no additional test cases)
         return cases
 
     def _generate_palindrome(self, difficulty: str) -> Dict[str, Any]:
