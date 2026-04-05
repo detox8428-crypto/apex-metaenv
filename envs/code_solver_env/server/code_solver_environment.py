@@ -27,6 +27,125 @@ from .problems import (
 logger = logging.getLogger(__name__)
 
 
+class CurriculumLearner:
+    """Tracks agent performance and recommends difficulty progression"""
+
+    def __init__(self):
+        """Initialize curriculum learner"""
+        # agent_id -> {difficulty -> [rewards]}
+        self.performance_history: Dict[str, Dict[str, list]] = {}
+        self.agent_difficulty: Dict[str, str] = {}  # agent_id -> current recommended difficulty
+        self.lock = Lock()
+        # Thresholds for curriculum progression
+        self.easy_threshold = 0.75  # Move to medium if easy avg > 0.75
+        self.medium_threshold = 0.75  # Move to hard if medium avg > 0.75
+
+    async def record_episode(self, agent_id: str, difficulty: str, reward: float):
+        """Record an episode result for an agent"""
+        async with self.lock:
+            if agent_id not in self.performance_history:
+                self.performance_history[agent_id] = {"easy": [], "medium": [], "hard": []}
+                self.agent_difficulty[agent_id] = "easy"  # Start at easy
+            
+            self.performance_history[agent_id][difficulty].append(reward)
+            logger.debug(f"Agent {agent_id[:8]} recorded reward {reward:.2f} on {difficulty}")
+
+    async def get_next_difficulty(self, agent_id: str, mode: str = "solve") -> str:
+        """
+        Get recommended difficulty for next episode based on performance.
+        
+        Curriculum progression:
+        - Start at easy
+        - Easy avg > 0.75 → medium
+        - Medium avg > 0.75 → hard
+        
+        Args:
+            agent_id: Agent/session identifier
+            mode: "solve" or "review" (curriculum applies to both)
+        
+        Returns:
+            Recommended difficulty: "easy", "medium", or "hard"
+        """
+        async with self.lock:
+            if agent_id not in self.performance_history:
+                self.performance_history[agent_id] = {"easy": [], "medium": [], "hard": []}
+                self.agent_difficulty[agent_id] = "easy"
+                return "easy"
+
+            history = self.performance_history[agent_id]
+            
+            # Calculate average rewards
+            easy_avg = sum(history["easy"]) / len(history["easy"]) if history["easy"] else 0.0
+            medium_avg = sum(history["medium"]) / len(history["medium"]) if history["medium"] else 0.0
+            
+            # Curriculum progression logic
+            if medium_avg > self.medium_threshold:
+                next_difficulty = "hard"
+            elif easy_avg > self.easy_threshold:
+                next_difficulty = "medium"
+            else:
+                next_difficulty = "easy"
+            
+            self.agent_difficulty[agent_id] = next_difficulty
+            
+            logger.info(
+                f"Agent {agent_id[:8]} curriculum update: "
+                f"easy_avg={easy_avg:.2f}, medium_avg={medium_avg:.2f} → {next_difficulty}"
+            )
+            return next_difficulty
+
+    async def get_progress(self, agent_id: str) -> Dict[str, Any]:
+        """Get detailed progress report for an agent"""
+        async with self.lock:
+            if agent_id not in self.performance_history:
+                return {
+                    "agent_id": agent_id,
+                    "episodes_completed": 0,
+                    "current_difficulty": "easy",
+                    "easy_performance": {"episodes": 0, "avg_reward": 0.0, "max_reward": 0.0},
+                    "medium_performance": {"episodes": 0, "avg_reward": 0.0, "max_reward": 0.0},
+                    "hard_performance": {"episodes": 0, "avg_reward": 0.0, "max_reward": 0.0},
+                }
+
+            history = self.performance_history[agent_id]
+            
+            def compute_stats(rewards):
+                if not rewards:
+                    return {"episodes": 0, "avg_reward": 0.0, "max_reward": 0.0}
+                return {
+                    "episodes": len(rewards),
+                    "avg_reward": sum(rewards) / len(rewards),
+                    "max_reward": max(rewards)
+                }
+
+            total_episodes = sum(len(rewards) for rewards in history.values())
+            
+            return {
+                "agent_id": agent_id,
+                "episodes_completed": total_episodes,
+                "current_difficulty": self.agent_difficulty.get(agent_id, "easy"),
+                "easy_performance": compute_stats(history["easy"]),
+                "medium_performance": compute_stats(history["medium"]),
+                "hard_performance": compute_stats(history["hard"]),
+                "progression_status": self._get_progression_status(agent_id, history),
+            }
+
+    def _get_progression_status(self, agent_id: str, history: Dict[str, list]) -> str:
+        """Get human-readable progression status"""
+        easy_avg = sum(history["easy"]) / len(history["easy"]) if history["easy"] else 0.0
+        medium_avg = sum(history["medium"]) / len(history["medium"]) if history["medium"] else 0.0
+        
+        if medium_avg > self.medium_threshold:
+            return "🏆 Mastered medium → Progressed to hard"
+        elif easy_avg > self.easy_threshold:
+            return "✅ Mastered easy → Progressed to medium"
+        elif history["easy"]:
+            return "📈 Improving on easy"
+        else:
+            return "🚀 Just started"
+
+
+
 class SessionManager:
     """Manages multiple concurrent sessions with automatic cleanup"""
 
@@ -151,11 +270,12 @@ class SessionManager:
 
 
 class CodeSolverEnvironment:
-    """Multi-session RL Environment for solving coding problems"""
+    """Multi-session RL Environment for solving coding problems with curriculum learning"""
 
     def __init__(self):
         """Initialize the environment"""
         self.session_manager = SessionManager()
+        self.curriculum = CurriculumLearner()
         self.max_steps = 10
 
     async def reset(
@@ -171,7 +291,7 @@ class CodeSolverEnvironment:
         
         Args:
             session_id: If provided, reuse session; otherwise create new
-            difficulty: Filter by difficulty (easy/medium/hard)
+            difficulty: Filter by difficulty (easy/medium/hard). If None, uses curriculum learning.
             mode: Task mode (solve=write code, review=fix buggy code)
             seed: Seed for procedural generation (if None, random)
             problem_source: Problem source (canonical, procedural, mixed)
@@ -189,6 +309,16 @@ class CodeSolverEnvironment:
         else:
             session_id = await self.session_manager.create_session()
             session = await self.session_manager.get_session(session_id)
+
+        # Curriculum learning: if difficulty not specified, use agent's current curriculum level
+        if difficulty is None:
+            difficulty = await self.curriculum.get_next_difficulty(session_id, mode=mode)
+            logger.info(f"Session {session_id[:8]} curriculum level: {difficulty}")
+        
+        # Store difficulty in session for step() to use when recording progress
+        async with self.session_manager.lock:
+            session["current_difficulty"] = difficulty
+            session["current_mode"] = mode
 
         # Select problem based on mode
         if mode == "review":
@@ -373,6 +503,16 @@ class CodeSolverEnvironment:
         # Determine termination
         terminated = (passed_cases == total_cases)  # All tests passed
         truncated = (step_count >= self.max_steps) and not terminated  # Max steps reached
+
+        # Record episode for curriculum learning (only when episode ends)
+        if terminated or truncated:
+            difficulty = session.get("current_difficulty", "easy")
+            await self.curriculum.record_episode(session_id, difficulty, final_reward)
+            logger.info(
+                f"Session {session_id[:8]} episode complete: "
+                f"difficulty={difficulty}, reward={final_reward:.2f}, "
+                f"terminated={terminated}"
+            )
 
         # Create observation
         if current_mode == "review":

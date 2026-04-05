@@ -156,6 +156,67 @@ PYTHONUNBUFFERED=1         # Unbuffered output
 - **File I/O:** Disabled (RLIMIT_FSIZE=0)
 - **Subprocesses:** Disabled (RLIMIT_NPROC=1)
 
+## Curriculum Learning 🎓
+
+The environment implements **curriculum learning** — automatically increasing problem difficulty as agents improve, just like human learning.
+
+### How It Works
+
+1. **Agent starts at EASY difficulty** when first initialized
+2. **Tracks average reward per difficulty level** across all episodes
+3. **Automatically progresses to harder problems:**
+   - Easy → Medium when `avg_reward > 0.75` on easy problems
+   - Medium → Hard when `avg_reward > 0.75` on medium problems
+4. **Fine-grained learning progression** prevents overfitting and distributes learning
+
+### Curriculum Benefits
+
+- **Faster convergence** - Agents learn easy skills before tackling hard ones
+- **Lower variance** - Curriculum prevents early frustration on hard problems
+- **Better generalization** - Progression mirrors human learning trajectories
+- **RL best practice** — Standard in OpenAI Gym, Meta's environments, and production RL systems
+
+### Checking Agent Progress
+
+Use the `/progress/{session_id}` endpoint to track curriculum advancement:
+
+```bash
+curl http://localhost:8000/progress/your-session-id
+```
+
+Returns:
+```json
+{
+  "status": "ok",
+  "data": {
+    "agent_id": "your-session-id",
+    "episodes_completed": 15,
+    "current_difficulty": "medium",
+    "easy_performance": {
+      "episodes": 5,
+      "avg_reward": 0.82,
+      "max_reward": 1.0
+    },
+    "medium_performance": {
+      "episodes":10,
+      "avg_reward": 0.68,
+      "max_reward": 1.0
+    },
+    "progression_status": "✅ Mastered easy → Progressed to medium"
+  }
+}
+```
+
+### Example Curriculum Trajectory
+
+```
+Episode 1-3:   EASY mode      → avg_reward = 0.60 (still improving)
+Episode 4-6:   EASY mode      → avg_reward = 0.82 (mastered!) 
+Episode 7-12:  MEDIUM mode    → avg_reward = 0.65 (challenging but doable)
+Episode 13-15: MEDIUM mode    → avg_reward = 0.78 (mastered!)
+Episode 16+:   HARD mode      → avg_reward = 0.45 (new challenge)
+```
+
 ## Baseline Scores (Qwen2.5-72B-Instruct)
 
 Model performance on all 12 tasks (3 difficulties × 2 modes):

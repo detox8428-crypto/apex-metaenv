@@ -69,6 +69,20 @@ async def health():
     }
 
 
+@app.get("/progress/{session_id}")
+async def get_progress(session_id: str):
+    """Get curriculum learning progress for an agent/session"""
+    try:
+        progress = await env.curriculum.get_progress(session_id)
+        return {
+            "status": "ok",
+            "data": progress
+        }
+    except Exception as e:
+        logger.error(f"Error getting progress: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/")
 async def root():
     """Root endpoint with service info"""
