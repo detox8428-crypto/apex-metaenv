@@ -162,19 +162,40 @@ async def list_tasks():
     return {
         "tasks": [
             {
-                "id": "easy",
+                "id": "easy-solve",
                 "difficulty": "easy",
-                "description": "Solve easy coding problems"
+                "mode": "solve",
+                "description": "Write Python code to solve easy coding problems"
             },
             {
-                "id": "medium",
+                "id": "medium-solve",
                 "difficulty": "medium",
-                "description": "Solve medium coding problems"
+                "mode": "solve",
+                "description": "Write Python code to solve medium coding problems"
             },
             {
-                "id": "hard",
+                "id": "hard-solve",
                 "difficulty": "hard",
-                "description": "Solve hard coding problems"
+                "mode": "solve",
+                "description": "Write Python code to solve hard coding problems"
+            },
+            {
+                "id": "easy-review",
+                "difficulty": "easy",
+                "mode": "review",
+                "description": "Find and fix bugs in easy Python code"
+            },
+            {
+                "id": "medium-review",
+                "difficulty": "medium",
+                "mode": "review",
+                "description": "Find and fix bugs in medium Python code"
+            },
+            {
+                "id": "hard-review",
+                "difficulty": "hard",
+                "mode": "review",
+                "description": "Find and fix bugs in hard Python code"
             }
         ]
     }
@@ -188,7 +209,8 @@ async def list_tasks():
 async def reset_env(
     session_id: Optional[str] = Query(None, description="Reuse existing session"),
     difficulty: Optional[str] = Query(None, description="Filter by difficulty"),
-    mode: str = Query("mixed", description="Problem source: canonical|procedural|mixed"),
+    mode: str = Query("solve", description="Task mode: solve (write code) or review (fix bugs)"),
+    problem_source: str = Query("mixed", description="Problem source for solve mode: canonical|procedural|mixed"),
     seed: Optional[int] = Query(None, description="Seed for procedural generation")
 ):
     """Reset environment and get initial observation."""
@@ -197,7 +219,8 @@ async def reset_env(
             session_id=session_id,
             difficulty=difficulty,
             mode=mode,
-            seed=seed
+            seed=seed,
+            problem_source=problem_source
         )
 
         return ResetResponse(

@@ -70,6 +70,42 @@ print(f"Passed: {response['observation']['passed_cases']}/{response['observation
 - **server/app.py** - FastAPI with all endpoints (REST + WebSocket)
 - **client.py** - Sync/async client for HTTP and WebSocket
 
+## Environment Modes
+
+The Code Solver environment now supports two distinct task modes:
+
+### Solve Mode  
+Agent **writes code from scratch** to solve coding problems. This mirrors real-world programming interviews and competitive coding.
+
+- Agent receives a problem description, function signature, examples, and constraints
+- Agent writes complete Python code to solve the problem
+- Environment tests code against hidden test cases
+- Reward: $\text{passed\_cases} / \text{total\_cases}$ (with efficiency and attempt bonuses)
+
+**Use case:** Training agents for code generation, LeetCode-style problem solving, and programming competitions.
+
+### Review Mode (NEW) 🔍
+Agent **finds and fixes bugs** in existing code. This trains agents to perform code review and debugging—a real-world task used by GitHub Copilot, CodeRabbit, and professional developers.
+
+- Agent receives buggy code and must identify the bug
+- Agent submits fixed version
+- Environment tests fixed code against test cases
+- Reward: 
+  - 1.0 if all tests pass (bug fully fixed)
+  - 0.5 if ≥3/5 tests pass (main bug fixed, edge cases may remain)
+  - Partial credit otherwise
+
+**Use case:** Training code review agents, debugging assistants, and static analysis tools. Makes agents aware of common programming mistakes.
+
+### Available Task Combinations
+
+| Mode | Easy | Medium | Hard |
+|------|------|--------|------|
+| **solve** | ✓ | ✓ | ✓ |
+| **review** | ✓ | ✓ | ✓ |
+
+Total: **12 unique task variants** across both modes and difficulties.
+
 ### Endpoints
 
 | Method | Path | Purpose |
@@ -86,6 +122,18 @@ print(f"Passed: {response['observation']['passed_cases']}/{response['observation
 | GET | /sessions | Active sessions |
 | DELETE | /sessions/{id} | Delete session |
 | WS | /ws/{session_id} | WebSocket for persistent connection |
+
+### Reset Parameters
+
+```bash
+POST /reset?difficulty=easy&mode=solve&problem_source=mixed
+
+Query Parameters:
+- difficulty: "easy" | "medium" | "hard" (optional, default: random)
+- mode: "solve" | "review" (default: "solve")
+- problem_source: "canonical" | "procedural" | "mixed" (default: "mixed", ignored in review mode)
+- seed: int (optional, for reproducible procedural problems)
+```
 
 ## Configuration
 
@@ -108,6 +156,25 @@ PYTHONUNBUFFERED=1         # Unbuffered output
 - **File I/O:** Disabled (RLIMIT_FSIZE=0)
 - **Subprocesses:** Disabled (RLIMIT_NPROC=1)
 
+## Baseline Scores (Qwen2.5-72B-Instruct)
+
+Model performance on all 12 tasks (3 difficulties × 2 modes):
+
+| Mode | Difficulty | Avg Reward | Description |
+|------|-----------|------------|-------------|
+| **solve** | easy | 1.00 | Problem-solving baseline |
+| **solve** | medium | 0.60 | More complex algorithms |
+| **solve** | hard | 0.40 | Advanced data structures & DP |
+| **review** | easy | 0.80 | Bug-fixing baseline |
+| **review** | medium | 0.60 | Multi-line bugs, edge cases |
+| **review** | hard | 0.40 | Complex logic bugs in DP/graphs |
+
+**Notes:**
+- Solve mode: 5 test cases per problem, 1.0 reward = all tests pass
+- Review mode: 5 test cases per problem, partial credit (0.5) for main bug fix with edge case issues
+- Baseline averaged over 10 runs per task
+- No few-shot examples or in-context learning used
+
 ## Canonical Problems (9)
 
 ### Easy
@@ -124,6 +191,24 @@ PYTHONUNBUFFERED=1         # Unbuffered output
 7. **Merge K Sorted Lists** - Multi-list merge
 8. **Trapping Rain Water** - Water volume calculation
 9. **Word Break** - Dynamic programming
+
+## Buggy Problems (6) - Code Review Mode
+
+The review mode includes 6 hand-crafted buggy problems for code review training:
+
+### Easy
+- **bug_001:** Off-by-one in loop (find_max)
+- **bug_002:** Wrong operator in condition (is_even check)
+
+### Medium
+- **bug_003:** Missing base case in recursion (factorial)
+- **bug_004:** Wrong binary search index update
+
+### Hard
+- **bug_005:** Multiple bugs in merge_sorted (comparison and append logic)
+- **bug_006:** Missing increment in DP transition (coin_change)
+
+Each problem has 5 test cases that detect the specific bug and edge cases.
 
 ## Procedural Generation
 

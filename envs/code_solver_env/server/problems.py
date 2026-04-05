@@ -182,6 +182,168 @@ PROBLEMS = CANONICAL_PROBLEMS
 
 
 # ============================================================================
+# BUGGY PROBLEMS (for Code Review mode)
+# ============================================================================
+
+BUGGY_PROBLEMS = [
+    # ==================== EASY ====================
+    {
+        "problem_id": "bug_001",
+        "title": "Fix Off-By-One in Loop",
+        "difficulty": "easy",
+        "description": "Find and return the maximum value in a list of integers.",
+        "buggy_code": """def find_max(nums):
+    max_val = nums[0]
+    for i in range(len(nums) - 1):  # BUG: should be range(len(nums))
+        if nums[i] > max_val:
+            max_val = nums[i]
+    return max_val""",
+        "bug_description": "Off-by-one error: loop should iterate through all elements, not stop one short",
+        "function_signature": "def find_max(nums):",
+        "examples": "Example:\nInput: nums = [3, 1, 4, 1, 5, 9, 2, 6]\nOutput: 9",
+        "constraints": "1 <= len(nums) <= 10^4, -10^9 <= nums[i] <= 10^9",
+        "test_cases": [
+            {"input": {"nums": [3, 1, 4, 1, 5, 9, 2, 6]}, "expected": 9},
+            {"input": {"nums": [1]}, "expected": 1},
+            {"input": {"nums": [-5, -2, -8, -1]}, "expected": -1},
+            {"input": {"nums": [100, 50, 75, 25]}, "expected": 100},
+            {"input": {"nums": [5, 5, 5, 5, 5]}, "expected": 5},
+        ],
+        "source": "buggy"
+    },
+    {
+        "problem_id": "bug_002",
+        "title": "Fix Modulo Check for Even Numbers",
+        "difficulty": "easy",
+        "description": "Return True if a number is even, False otherwise.",
+        "buggy_code": """def is_even(n):
+    return n % 2 == 1  # BUG: should be == 0""",
+        "bug_description": "Wrong operator: checking if odd (== 1) instead of even (== 0)",
+        "function_signature": "def is_even(n):",
+        "examples": "Example:\nInput: n = 4\nOutput: True\n\nInput: n = 3\nOutput: False",
+        "constraints": "-10^9 <= n <= 10^9",
+        "test_cases": [
+            {"input": {"n": 4}, "expected": True},
+            {"input": {"n": 3}, "expected": False},
+            {"input": {"n": 0}, "expected": True},
+            {"input": {"n": -2}, "expected": True},
+            {"input": {"n": -5}, "expected": False},
+        ],
+        "source": "buggy"
+    },
+    # ==================== MEDIUM ====================
+    {
+        "problem_id": "bug_003",
+        "title": "Fix Missing Base Case in Recursion",
+        "difficulty": "medium",
+        "description": "Calculate the factorial of a non-negative integer n. Return n! = n * (n-1) * ... * 1.",
+        "buggy_code": """def factorial(n):
+    # BUG: missing if n == 0: return 1
+    return n * factorial(n - 1)""",
+        "bug_description": "Missing base case: infinite recursion without returning 1 when n equals 0",
+        "function_signature": "def factorial(n):",
+        "examples": "Example:\nInput: n = 5\nOutput: 120\nExplanation: 5 * 4 * 3 * 2 * 1 = 120",
+        "constraints": "0 <= n <= 20",
+        "test_cases": [
+            {"input": {"n": 5}, "expected": 120},
+            {"input": {"n": 0}, "expected": 1},
+            {"input": {"n": 1}, "expected": 1},
+            {"input": {"n": 10}, "expected": 3628800},
+            {"input": {"n": 3}, "expected": 6},
+        ],
+        "source": "buggy"
+    },
+    {
+        "problem_id": "bug_004",
+        "title": "Fix Binary Search Index Update",
+        "difficulty": "medium",
+        "description": "Search for a target value in a sorted array using binary search. Return the index if found, else return -1.",
+        "buggy_code": """def binary_search(nums, target):
+    left, right = 0, len(nums) - 1
+    while left <= right:
+        mid = (left + right) // 2
+        if nums[mid] == target:
+            return mid
+        elif nums[mid] < target:
+            left = mid  # BUG: should be mid + 1
+        else:
+            right = mid - 1
+    return -1""",
+        "bug_description": "Wrong update: left should be set to mid + 1, not mid, to avoid infinite loop",
+        "function_signature": "def binary_search(nums, target):",
+        "examples": "Example:\nInput: nums = [1, 3, 5, 7, 9], target = 7\nOutput: 3",
+        "constraints": "1 <= len(nums) <= 10^4, -10^9 <= nums[i] <= 10^9, -10^9 <= target <= 10^9",
+        "test_cases": [
+            {"input": {"nums": [1, 3, 5, 7, 9], "target": 7}, "expected": 3},
+            {"input": {"nums": [1, 3, 5, 7, 9], "target": 1}, "expected": 0},
+            {"input": {"nums": [1, 3, 5, 7, 9], "target": 9}, "expected": 4},
+            {"input": {"nums": [1, 3, 5, 7, 9], "target": 4}, "expected": -1},
+            {"input": {"nums": [2, 4, 6, 8, 10], "target": 6}, "expected": 2},
+        ],
+        "source": "buggy"
+    },
+    # ==================== HARD ====================
+    {
+        "problem_id": "bug_005",
+        "title": "Fix Merge Sorted Arrays Logic",
+        "difficulty": "hard",
+        "description": "Merge two sorted arrays into one sorted array in ascending order.",
+        "buggy_code": """def merge_sorted(a, b):
+    result = []
+    i = j = 0
+    while i < len(a) and j < len(b):
+        if a[i] < b[j]:  # BUG: should be <=
+            result.append(b[j])  # BUG: should be a[i]
+            i += 1
+        else:
+            result.append(a[i])  # BUG: should be b[j]
+            j += 1
+    result.extend(a[i:])
+    result.extend(b[j:])
+    return result""",
+        "bug_description": "Multiple bugs: wrong comparison operator and swapped append values",
+        "function_signature": "def merge_sorted(a, b):",
+        "examples": "Example:\nInput: a = [1, 3, 5], b = [2, 4, 6]\nOutput: [1, 2, 3, 4, 5, 6]",
+        "constraints": "0 <= len(a), len(b) <= 10^4",
+        "test_cases": [
+            {"input": {"a": [1, 3, 5], "b": [2, 4, 6]}, "expected": [1, 2, 3, 4, 5, 6]},
+            {"input": {"a": [1, 2, 3], "b": [4, 5, 6]}, "expected": [1, 2, 3, 4, 5, 6]},
+            {"input": {"a": [1], "b": [1]}, "expected": [1, 1]},
+            {"input": {"a": [], "b": [1, 2, 3]}, "expected": [1, 2, 3]},
+            {"input": {"a": [1, 3, 5, 7], "b": [2, 4, 6, 8]}, "expected": [1, 2, 3, 4, 5, 6, 7, 8]},
+        ],
+        "source": "buggy"
+    },
+    {
+        "problem_id": "bug_006",
+        "title": "Fix DP Transition in Coin Change",
+        "difficulty": "hard",
+        "description": "Find the minimum number of coins needed to make a given amount. Return -1 if impossible.",
+        "buggy_code": """def coin_change(coins, amount):
+    dp = [float('inf')] * (amount + 1)
+    dp[0] = 0
+    for i in range(1, amount + 1):
+        for coin in coins:
+            if coin <= i:
+                dp[i] = min(dp[i], dp[i - coin])  # BUG: should be dp[i-coin] + 1
+    return dp[amount] if dp[amount] != float('inf') else -1""",
+        "bug_description": "Missing +1: DP transition should add 1 coin to the count from subproblem",
+        "function_signature": "def coin_change(coins, amount):",
+        "examples": "Example:\nInput: coins = [1, 5, 10], amount = 11\nOutput: 2\nExplanation: 10 + 1 = 11 (2 coins)",
+        "constraints": "1 <= len(coins) <= 12, 1 <= coins[i] <= 2^31 - 1, 0 <= amount <= 10^4",
+        "test_cases": [
+            {"input": {"coins": [1, 5, 10], "amount": 11}, "expected": 2},
+            {"input": {"coins": [2], "amount": 3}, "expected": -1},
+            {"input": {"coins": [10], "amount": 10}, "expected": 1},
+            {"input": {"coins": [1, 2, 5], "amount": 5}, "expected": 1},
+            {"input": {"coins": [1, 3, 4], "amount": 6}, "expected": 2},
+        ],
+        "source": "buggy"
+    }
+]
+
+
+# ============================================================================
 # PROCEDURAL PROBLEM GENERATOR
 # ============================================================================
 
@@ -579,12 +741,27 @@ def get_problems_by_difficulty(difficulty: str) -> List[Dict[str, Any]]:
     return [p for p in CANONICAL_PROBLEMS if p["difficulty"] == difficulty]
 
 
+def get_buggy_problems_by_difficulty(difficulty: str) -> List[Dict[str, Any]]:
+    """Get all buggy problems of a given difficulty"""
+    return [p for p in BUGGY_PROBLEMS if p["difficulty"] == difficulty]
+
+
 def get_random_canonical_problem(difficulty: str = None) -> Dict[str, Any]:
     """Get a random canonical problem, optionally filtered by difficulty"""
     if difficulty:
         problems = get_problems_by_difficulty(difficulty)
     else:
         problems = CANONICAL_PROBLEMS
+    
+    return random.choice(problems) if problems else None
+
+
+def get_random_buggy_problem(difficulty: str = None) -> Dict[str, Any]:
+    """Get a random buggy problem, optionally filtered by difficulty"""
+    if difficulty:
+        problems = get_buggy_problems_by_difficulty(difficulty)
+    else:
+        problems = BUGGY_PROBLEMS
     
     return random.choice(problems) if problems else None
 

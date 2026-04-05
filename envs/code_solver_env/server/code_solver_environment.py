@@ -19,9 +19,9 @@ from models import (
 from .sandbox import execute_code_sandboxed
 from .rewards import RewardCalculator
 from .problems import (
-    CANONICAL_PROBLEMS, get_random_canonical_problem,
-    get_canonical_problem, get_problem_by_id,
-    ProceduralProblemGenerator, get_problems_by_difficulty
+    CANONICAL_PROBLEMS, BUGGY_PROBLEMS, get_random_canonical_problem,
+    get_canonical_problem, get_problem_by_id, get_random_buggy_problem,
+    ProceduralProblemGenerator, get_problems_by_difficulty, get_buggy_problems_by_difficulty
 )
 
 logger = logging.getLogger(__name__)
@@ -162,8 +162,9 @@ class CodeSolverEnvironment:
         self,
         session_id: Optional[str] = None,
         difficulty: Optional[str] = None,
-        mode: str = "mixed",  # canonical, procedural, mixed
-        seed: Optional[int] = None
+        mode: str = "solve",  # solve or review
+        seed: Optional[int] = None,
+        problem_source: str = "mixed"  # canonical, procedural, mixed
     ) -> Tuple[str, ProblemObservation]:
         """
         Reset environment and select a problem.
@@ -171,8 +172,9 @@ class CodeSolverEnvironment:
         Args:
             session_id: If provided, reuse session; otherwise create new
             difficulty: Filter by difficulty (easy/medium/hard)
-            mode: Problem source (canonical, procedural, mixed)
+            mode: Task mode (solve=write code, review=fix buggy code)
             seed: Seed for procedural generation (if None, random)
+            problem_source: Problem source (canonical, procedural, mixed)
             
         Returns:
             (session_id, observation)
@@ -189,31 +191,37 @@ class CodeSolverEnvironment:
             session = await self.session_manager.get_session(session_id)
 
         # Select problem based on mode
-        if mode == "procedural":
-            if seed is None:
-                seed = random.randint(0, 2**31 - 1)
-            gen = ProceduralProblemGenerator(seed=seed)
-            problem = gen.generate(
-                random.choice(["two_sum", "palindrome", "sorting"]),
-                difficulty or "easy"
-            )
-            source = "procedural"
-        elif mode == "canonical":
-            problem = get_random_canonical_problem(difficulty) or get_random_canonical_problem()
-            source = "canonical"
-        else:  # mixed
-            if random.choice([True, False]):
+        if mode == "review":
+            # Get a buggy problem for code review
+            problem = get_random_buggy_problem(difficulty) or get_random_buggy_problem()
+            source = "buggy"
+        else:
+            # Get a canonical or procedural problem for solving
+            if problem_source == "procedural":
                 if seed is None:
                     seed = random.randint(0, 2**31 - 1)
                 gen = ProceduralProblemGenerator(seed=seed)
                 problem = gen.generate(
-                    random.choice(["two_sum", "palindrome"]),
+                    random.choice(["two_sum", "palindrome", "sorting"]),
                     difficulty or "easy"
                 )
                 source = "procedural"
-            else:
+            elif problem_source == "canonical":
                 problem = get_random_canonical_problem(difficulty) or get_random_canonical_problem()
                 source = "canonical"
+            else:  # mixed
+                if random.choice([True, False]):
+                    if seed is None:
+                        seed = random.randint(0, 2**31 - 1)
+                    gen = ProceduralProblemGenerator(seed=seed)
+                    problem = gen.generate(
+                        random.choice(["two_sum", "palindrome"]),
+                        difficulty or "easy"
+                    )
+                    source = "procedural"
+                else:
+                    problem = get_random_canonical_problem(difficulty) or get_random_canonical_problem()
+                    source = "canonical"
 
         # Update session
         async with self.session_manager.lock:
@@ -224,11 +232,20 @@ class CodeSolverEnvironment:
             session["episode_history"] = []
             session["problem_source"] = source
             session["max_steps"] = self.max_steps
+            session["current_mode"] = mode  # Store task mode (solve or review)
 
         # Create observation
-        observation = self._problem_to_observation(
-            problem, 0, self.max_steps, passed_cases=0, total_cases=len(problem["test_cases"])
-        )
+        if mode == "review":
+            # For review mode, include buggy code in description
+            description = f"{problem['description']}\n\nThe following code has a bug. Find and fix it:\n\n{problem['buggy_code']}"
+            observation = self._problem_to_observation(
+                problem, 0, self.max_steps, passed_cases=0, total_cases=len(problem["test_cases"]),
+                description_override=description
+            )
+        else:
+            observation = self._problem_to_observation(
+                problem, 0, self.max_steps, passed_cases=0, total_cases=len(problem["test_cases"])
+            )
 
         return session_id, observation
 
@@ -255,6 +272,8 @@ class CodeSolverEnvironment:
         problem = session.get("problem")
         if not problem:
             raise ValueError("Environment not reset - no problem loaded")
+
+        current_mode = session.get("current_mode", "solve")
 
         # Increment step count
         async with self.session_manager.lock:
@@ -291,30 +310,39 @@ class CodeSolverEnvironment:
         error_type = exec_result.get("error_type")
         error_message = exec_result.get("error")
 
-        # Calculate reward
-        time_ms_total = sum(r.time_ms or 0 for r in test_results)
-        code_lines = len(code.strip().split('\n'))
+        # Calculate reward (handle review mode)
+        if current_mode == "review":
+            # In review mode, give partial credit for fixing the bug even if not all tests pass
+            if passed_cases == total_cases:
+                final_reward = 1.0  # Perfect score
+            elif passed_cases >= 3:  # At least 3/5 tests pass (main bug fixed)
+                final_reward = 0.5  # Partial credit - main bug fixed but may have edge case issues
+            else:
+                final_reward = 0.1 * passed_cases / total_cases  # Minimal credit for partial fixes
+        else:
+            # In solve mode, use standard reward calculation
+            time_ms_total = sum(r.time_ms or 0 for r in test_results)
+            code_lines = len(code.strip().split('\n'))
 
-        reward_dict = RewardCalculator.calculate(
-            passed_cases=passed_cases,
-            total_cases=total_cases,
-            time_ms_total=time_ms_total,
-            step_count=step_count,
-            code_lines=code_lines,
-            error_type=error_type,
-            error_message=error_message,
-            test_results=[
-                {
-                    "case_index": r.case_index,
-                    "passed": r.passed,
-                    "error": r.error,
-                    "time_ms": r.time_ms
-                }
-                for r in test_results
-            ]
-        )
-
-        final_reward = reward_dict["final_reward"]
+            reward_dict = RewardCalculator.calculate(
+                passed_cases=passed_cases,
+                total_cases=total_cases,
+                time_ms_total=time_ms_total,
+                step_count=step_count,
+                code_lines=code_lines,
+                error_type=error_type,
+                error_message=error_message,
+                test_results=[
+                    {
+                        "case_index": r.case_index,
+                        "passed": r.passed,
+                        "error": r.error,
+                        "time_ms": r.time_ms
+                    }
+                    for r in test_results
+                ]
+            )
+            final_reward = reward_dict["final_reward"]
 
         # Update session
         async with self.session_manager.lock:
@@ -335,29 +363,45 @@ class CodeSolverEnvironment:
         truncated = (step_count >= self.max_steps) and not terminated  # Max steps reached
 
         # Create observation
-        observation = self._problem_to_observation(
-            problem, step_count, self.max_steps,
-            passed_cases=passed_cases,
-            total_cases=total_cases,
-            test_results=test_results,
-            error_message=error_message
-        )
+        if current_mode == "review":
+            description = f"{problem['description']}\n\nThe following code has a bug. Find and fix it:\n\n{problem['buggy_code']}"
+            observation = self._problem_to_observation(
+                problem, step_count, self.max_steps,
+                passed_cases=passed_cases,
+                total_cases=total_cases,
+                test_results=test_results,
+                error_message=error_message,
+                description_override=description
+            )
+        else:
+            observation = self._problem_to_observation(
+                problem, step_count, self.max_steps,
+                passed_cases=passed_cases,
+                total_cases=total_cases,
+                test_results=test_results,
+                error_message=error_message
+            )
 
         # Build info dict
         info = {
             "passed_cases": passed_cases,
             "total_cases": total_cases,
-            "primary_reward": reward_dict["primary_reward"],
-            "efficiency_bonus": reward_dict["efficiency_bonus"],
-            "attempt_penalty": reward_dict["attempt_penalty"],
             "final_reward": final_reward,
-            "per_test_results": reward_dict["per_test_results"],
             "error_type": error_type,
             "error_message": error_message,
-            "time_ms_total": reward_dict["time_ms_total"],
-            "code_lines": code_lines,
             "best_reward_this_episode": session["best_reward"],
+            "mode": current_mode,
         }
+
+        if current_mode == "solve":
+            info.update({
+                "primary_reward": reward_dict.get("primary_reward", 0),
+                "efficiency_bonus": reward_dict.get("efficiency_bonus", 0),
+                "attempt_penalty": reward_dict.get("attempt_penalty", 0),
+                "per_test_results": reward_dict.get("per_test_results", []),
+                "time_ms_total": reward_dict.get("time_ms_total", 0),
+                "code_lines": len(code.strip().split('\n')),
+            })
 
         return observation, final_reward, terminated, truncated, info
 
@@ -387,16 +431,20 @@ class CodeSolverEnvironment:
         passed_cases: int = 0,
         total_cases: int = 0,
         test_results: list = None,
-        error_message: str = None
+        error_message: str = None,
+        description_override: str = None
     ) -> ProblemObservation:
         """Convert problem dict to ProblemObservation model"""
         if test_results is None:
             test_results = []
 
+        # Use override description if provided (for review mode)
+        description = description_override if description_override else problem["description"]
+
         return ProblemObservation(
             problem_id=problem["problem_id"],
             title=problem["title"],
-            description=problem["description"],
+            description=description,
             function_signature=problem["function_signature"],
             examples=problem["examples"],
             constraints=problem["constraints"],

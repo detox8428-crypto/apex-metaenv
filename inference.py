@@ -360,6 +360,38 @@ Difficulty: {observation.get('difficulty', 'Unknown')}
         prompt += "\nProvide ONLY the Python code without any explanations or markdown. Write complete, working code that can be executed."
         return prompt
 
+    def _build_review_prompt(self, observation: Dict[str, Any]) -> str:
+        """Build the prompt for code review (fixing buggy code)."""
+        prompt = f"""You are an expert Python code reviewer.
+
+Task: {observation.get('title', 'Unknown')}
+
+{observation.get('description', 'No description')}
+
+The code above contains a bug. Analyze it carefully and return ONLY the complete fixed Python function with the bug corrected. No explanation, no markdown, just the fixed function starting with 'def'."""
+        return prompt
+
+    def generate_fix(self, observation: Dict[str, Any], temperature: float = 0.7) -> str:
+        """
+        Generate a fixed version of buggy code (for code review mode).
+        
+        Args:
+            observation: Problem observation with buggy code in description
+            temperature: LLM temperature for generation
+            
+        Returns:
+            Fixed Python code as string
+        """
+        prompt = self._build_review_prompt(observation)
+        
+        logger.info(f"Generating fix for: {observation.get('title', 'Unknown')}")
+        
+        try:
+            return self._generate_openai(prompt, temperature)
+        except Exception as e:
+            logger.error(f"Error generating fix: {e}")
+            return self._get_template_solution(observation)
+
     def _get_template_solution(self, observation: Dict[str, Any]) -> str:
         """Get a template solution when LLM is not available."""
         sig = observation.get('function_signature', '').strip()
@@ -370,39 +402,61 @@ Difficulty: {observation.get('difficulty', 'Unknown')}
 
 
 def main():
-    """Main function demonstrating Code Solver Agent capabilities."""
+    """Main function demonstrating Code Solver Agent capabilities with solve and review modes."""
     
     # Initialize agent
     agent = CodeSolverAgent(
-        model=os.getenv('MODEL_NAME', 'gpt-3.5-turbo'),
+        model=os.getenv('MODEL_NAME', 'Qwen/Qwen2.5-72B-Instruct'),
         api_key=os.getenv('HF_TOKEN', ''),
-        api_base_url=os.getenv('API_BASE_URL', 'https://api-inference.huggingface.co/models'),
+        api_base_url=os.getenv('API_BASE_URL', 'https://router.huggingface.co/v1'),
         env_url=os.getenv('ENV_URL', 'http://localhost:8000')
     )
     
+    # Define episodes: 3 solve + 3 review
+    EPISODES = [
+        {"mode": "solve", "difficulty": "easy", "task_name": "easy-solve"},
+        {"mode": "solve", "difficulty": "medium", "task_name": "medium-solve"},
+        {"mode": "solve", "difficulty": "hard", "task_name": "hard-solve"},
+        {"mode": "review", "difficulty": "easy", "task_name": "easy-review"},
+        {"mode": "review", "difficulty": "medium", "task_name": "medium-review"},
+        {"mode": "review", "difficulty": "hard", "task_name": "hard-review"},
+    ]
+    
     try:
-        # Solve multiple problems
         all_rewards = []
+        model_name = os.getenv('MODEL_NAME', 'Qwen/Qwen2.5-72B-Instruct').split('/')[-1]
         
-        # Solve 3 problems minimum
-        num_problems = 3
-        for problem_idx in range(num_problems):
-            # Reset and get new problem
-            problem = agent.reset()
-            if not problem:
-                logger.error(f"Failed to get problem {problem_idx + 1}")
+        for episode_idx, episode_config in enumerate(EPISODES):
+            mode = episode_config["mode"]
+            difficulty = episode_config["difficulty"]
+            task_name = episode_config["task_name"]
+            
+            # Reset with appropriate mode
+            agent.current_problem = None
+            agent.session_id = None
+            
+            try:
+                response = requests.post(
+                    f"{agent.env_url}/reset",
+                    json={"difficulty": difficulty, "mode": mode},
+                    timeout=10
+                )
+                response.raise_for_status()
+                result = response.json()
+                agent.current_problem = result.get('observation', {})
+                agent.session_id = result.get('session_id')
+            except Exception as e:
+                logger.error(f"Failed to reset environment for {task_name}: {e}")
                 continue
             
-            task_name = problem.get('title', f'problem_{problem_idx}').replace(' ', '_').lower()
-            model_name = os.getenv('MODEL_NAME', 'gpt-3.5-turbo')
+            problem = agent.current_problem
             
             # [START] format
-            print(f"[START] task={task_name} env=code-solver-env model={model_name}")
+            print(f"[START] task={task_name} mode={mode} env=code-solver-env model={model_name}")
             
             step_count = 0
             episode_rewards = []
             success = False
-            last_error = None
             
             # Max 3 attempts per problem
             max_attempts = 3
@@ -410,12 +464,15 @@ def main():
                 step_count += 1
                 
                 try:
-                    # Generate code
-                    feedback = None
-                    if attempt > 0 and agent.submission_history:
-                        feedback = agent.submission_history[-1]
+                    # Generate code based on mode
+                    if mode == "review":
+                        code = agent.generate_fix(problem)
+                    else:
+                        feedback = None
+                        if attempt > 0 and agent.submission_history:
+                            feedback = agent.submission_history[-1]
+                        code = agent.generate_solution(problem, feedback)
                     
-                    code = agent.generate_solution(problem, feedback)
                     if not code or len(code.strip()) == 0:
                         logger.warning("Generated code is empty")
                         code = agent._get_template_solution(problem)
@@ -428,10 +485,9 @@ def main():
                     done = result.get('terminated', False) or reward >= 1.0
                     error = result.get('info', {}).get('error_message') or \
                             result.get('info', {}).get('error') or None
-                    last_error = error
                     
                     # [STEP] format
-                    action_str = f"write_code({len(code)} chars)"
+                    action_str = f"submit_code({len(code)} chars)"
                     error_str = f'"{error}"' if error else "null"
                     done_str = "true" if done else "false"
                     print(f"[STEP] step={step_count} action={action_str} reward={reward:.2f} done={done_str} error={error_str}")
@@ -457,13 +513,12 @@ def main():
             
             # [END] format
             success_str = "true" if success else "false"
-            rewards_str = ','.join([f"{r:.2f}" for r in episode_rewards])
             total_reward = sum(episode_rewards) if episode_rewards else 0.0
             print(f"[END] success={success_str} steps={step_count} rewards={total_reward:.2f}")
         
         # Summary
         logger.info(f"\n{'='*60}")
-        logger.info(f"Completed {num_problems} problems")
+        logger.info(f"Completed {len(EPISODES)} episodes (3 solve + 3 review)")
         if all_rewards:
             avg_reward = sum(all_rewards) / len(all_rewards)
             logger.info(f"Average reward: {avg_reward:.2f}")
