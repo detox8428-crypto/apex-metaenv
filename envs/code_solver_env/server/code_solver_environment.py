@@ -200,12 +200,18 @@ class CodeSolverEnvironment:
             if problem_source == "procedural":
                 if seed is None:
                     seed = random.randint(0, 2**31 - 1)
-                gen = ProceduralProblemGenerator(seed=seed)
-                problem = gen.generate(
-                    random.choice(["two_sum", "palindrome", "sorting"]),
-                    difficulty or "easy"
-                )
-                source = "procedural"
+                try:
+                    gen = ProceduralProblemGenerator(seed=seed)
+                    problem = gen.generate(
+                        random.choice(["two_sum", "palindrome", "sorting"]),
+                        difficulty or "easy"
+                    )
+                    source = "procedural"
+                except Exception as e:
+                    logger.error(f"Error generating procedural problem with seed {seed}: {e}", exc_info=True)
+                    # Fallback to canonical problem
+                    problem = get_random_canonical_problem(difficulty) or get_random_canonical_problem()
+                    source = "canonical"
             elif problem_source == "canonical":
                 problem = get_random_canonical_problem(difficulty) or get_random_canonical_problem()
                 source = "canonical"
@@ -213,12 +219,18 @@ class CodeSolverEnvironment:
                 if random.choice([True, False]):
                     if seed is None:
                         seed = random.randint(0, 2**31 - 1)
-                    gen = ProceduralProblemGenerator(seed=seed)
-                    problem = gen.generate(
-                        random.choice(["two_sum", "palindrome"]),
-                        difficulty or "easy"
-                    )
-                    source = "procedural"
+                    try:
+                        gen = ProceduralProblemGenerator(seed=seed)
+                        problem = gen.generate(
+                            random.choice(["two_sum", "palindrome"]),
+                            difficulty or "easy"
+                        )
+                        source = "procedural"
+                    except Exception as e:
+                        logger.error(f"Error generating procedural problem (mixed mode) with seed {seed}: {e}", exc_info=True)
+                        # Fallback to canonical
+                        problem = get_random_canonical_problem(difficulty) or get_random_canonical_problem()
+                        source = "canonical"
                 else:
                     problem = get_random_canonical_problem(difficulty) or get_random_canonical_problem()
                     source = "canonical"

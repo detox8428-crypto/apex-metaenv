@@ -12,6 +12,7 @@ from typing import Optional
 from fastapi import FastAPI, WebSocket, HTTPException, Query, Body, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from models import (
     CodeAction, ResetResponse, StepResponse, EnvState,
@@ -205,22 +206,24 @@ async def list_tasks():
 # RESET ENDPOINT
 # ============================================================================
 
+class ResetRequest(BaseModel):
+    """Reset endpoint request body"""
+    session_id: Optional[str] = None
+    difficulty: Optional[str] = None
+    mode: str = "solve"  # solve or review
+    problem_source: str = "mixed"  # canonical, procedural, mixed
+    seed: Optional[int] = None
+
 @app.post("/reset", response_model=ResetResponse)
-async def reset_env(
-    session_id: Optional[str] = Query(None, description="Reuse existing session"),
-    difficulty: Optional[str] = Query(None, description="Filter by difficulty"),
-    mode: str = Query("solve", description="Task mode: solve (write code) or review (fix bugs)"),
-    problem_source: str = Query("mixed", description="Problem source for solve mode: canonical|procedural|mixed"),
-    seed: Optional[int] = Query(None, description="Seed for procedural generation")
-):
+async def reset_env(request: ResetRequest):
     """Reset environment and get initial observation."""
     try:
         new_session_id, observation = await env.reset(
-            session_id=session_id,
-            difficulty=difficulty,
-            mode=mode,
-            seed=seed,
-            problem_source=problem_source
+            session_id=request.session_id,
+            difficulty=request.difficulty,
+            mode=request.mode,
+            seed=request.seed,
+            problem_source=request.problem_source
         )
 
         return ResetResponse(
@@ -228,7 +231,7 @@ async def reset_env(
             observation=observation
         )
     except Exception as e:
-        logger.error(f"Reset error: {e}")
+        logger.error(f"Reset error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
