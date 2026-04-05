@@ -6,16 +6,16 @@ A reinforcement learning environment for training agents to solve LeetCode-style
 
 ## Features
 
-✅ **Multi-Session Management** - Parallel agents with isolated state via UUIDs  
-✅ **Sandboxed Execution** - Subprocess isolation with resource limits (CPU, memory, processes)  
-✅ **Security First** - AST-based code analysis to prevent dangerous imports/calls  
-✅ **WebSocket Support** - Persistent connections for streaming test results  
-✅ **Procedural Generation** - Infinite problem variants with seed control (7 templates)  
-✅ **Typed Models** - Pydantic v2 schemas with OpenAPI docs  
-✅ **Auto-Discovery** - `/manifest` endpoint for framework integration  
-✅ **Reward Shaping** - Composite rewards (test pass rate + efficiency + attempt penalty)  
-✅ **Scalable** - Docker Compose with nginx load balancer (3-8 replicas)  
-✅ **HF Spaces** - Gradio interface for public deployment  
+ **Multi-Session Management** - Parallel agents with isolated state via UUIDs  
+ **Sandboxed Execution** - Subprocess isolation with resource limits (CPU, memory, processes)  
+ **Security First** - AST-based code analysis to prevent dangerous imports/calls  
+ **WebSocket Support** - Persistent connections for streaming test results  
+ **Procedural Generation** - Infinite problem variants with seed control (7 templates)  
+ **Typed Models** - Pydantic v2 schemas with OpenAPI docs  
+ **Auto-Discovery** - `/manifest` endpoint for framework integration  
+ **Reward Shaping** - Composite rewards (test pass rate + efficiency + attempt penalty)  
+ **Scalable** - Docker Compose with nginx load balancer (3-8 replicas)  
+ **HF Spaces** - Gradio interface for public deployment  
 
 ## Quick Start (5 Minutes)
 
@@ -202,7 +202,7 @@ Returns:
       "avg_reward": 0.68,
       "max_reward": 1.0
     },
-    "progression_status": "✅ Mastered easy → Progressed to medium"
+    "progression_status": " Mastered easy → Progressed to medium"
   }
 }
 ```
