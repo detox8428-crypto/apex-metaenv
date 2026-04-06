@@ -90,7 +90,7 @@ async def root():
         "service": "APEX Code Solver",
         "version": "2.0.0",
         "spec": "openenv/v1",
-        "contact": "GitHub Copilot"
+        "contact": "Team APEX"
     }
 
 
@@ -106,6 +106,7 @@ async def manifest():
         version="2.0.0",
         spec="openenv/v1",
         description="RL environment for training agents to solve LeetCode-style coding problems with online test evaluation and partial credit rewards",
+        contact="Team APEX",
         action_schema={
             "type": "object",
             "properties": {

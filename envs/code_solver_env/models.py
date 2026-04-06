@@ -197,6 +197,7 @@ class ManifestResponse(BaseModel):
     version: str = Field(..., description="Environment version")
     spec: str = Field(..., description="Compliance spec (e.g., 'openenv/v1')")
     description: str = Field(..., description="Environment description")
+    contact: str = Field(default="Team APEX", description="Contact information")
     action_schema: dict = Field(..., description="JSON schema for actions")
     observation_schema: dict = Field(..., description="JSON schema for observations")
     transport: list[str] = Field(..., description="Supported transports (http, websocket)")
