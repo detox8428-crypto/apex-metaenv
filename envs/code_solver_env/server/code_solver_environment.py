@@ -553,6 +553,7 @@ class CodeSolverEnvironment:
                 "per_test_results": reward_dict.get("per_test_results", []),
                 "time_ms_total": reward_dict.get("time_ms_total", 0),
                 "code_lines": len(code.strip().split('\n')),
+                "reward_breakdown": reward_dict.get("reward_breakdown", {}),  # Rich reward signals
             })
 
         return observation, final_reward, terminated, truncated, info

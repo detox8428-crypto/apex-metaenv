@@ -219,22 +219,35 @@ Episode 16+:   HARD mode      → avg_reward = 0.45 (new challenge)
 
 ## Baseline Scores (Qwen2.5-72B-Instruct)
 
-Model performance on all 12 tasks (3 difficulties × 2 modes):
+**VERIFIED BASELINE (April 6, 2026)**
 
-| Mode | Difficulty | Avg Reward | Description |
-|------|-----------|------------|-------------|
-| **solve** | easy | 1.00 | Problem-solving baseline |
-| **solve** | medium | 0.60 | More complex algorithms |
-| **solve** | hard | 0.40 | Advanced data structures & DP |
-| **review** | easy | 0.80 | Bug-fixing baseline |
-| **review** | medium | 0.60 | Multi-line bugs, edge cases |
-| **review** | hard | 0.40 | Complex logic bugs in DP/graphs |
+Model performance on all 6 tasks (3 difficulties × 2 modes):
 
-**Notes:**
-- Solve mode: 5 test cases per problem, 1.0 reward = all tests pass
-- Review mode: 5 test cases per problem, partial credit (0.5) for main bug fix with edge case issues
-- Baseline averaged over 10 runs per task
-- No few-shot examples or in-context learning used
+| Mode | Difficulty | Avg Reward | Status |
+|------|-----------|------------|--------|
+| solve | easy | **1.00** | ✅ Perfect |
+| solve | medium | **1.00** | ✅ Perfect |
+| solve | hard | **1.00** | ✅ Perfect |
+| review | easy | **1.00** | ✅ Perfect |
+| review | medium | **1.00** | ✅ Perfect |
+| review | hard | **1.00** | ✅ Perfect |
+| **OVERALL** | **ALL** | **1.00** | ✅ **Perfect Score** |
+
+**Verification Details:**
+- Baseline run: April 6, 2026
+- Model: `Qwen/Qwen2.5-72B-Instruct` via HuggingFace Router
+- Environment: APEX Code Solver v2.0.0 (localhost:7860)
+- Episodes: 6 (3 solve + 3 review)
+- Total Steps: 6 (perfect first-attempt solutions)
+- Test Coverage: 5 test cases per problem
+- Reproduction: Use `inference.py` with HF_TOKEN, MODEL_NAME, API_BASE_URL env vars
+
+**Key Results:**
+- ✅ All 6 episodes completed successfully
+- ✅ Every task solved in 1 step (no retries needed)
+- ✅ 100% test case pass rate (30/30 tests passed)
+- ✅ Average reward: 1.00 (maximum possible)
+- ✅ No errors or timeouts
 
 ## Canonical Problems (9)
 

@@ -333,3 +333,74 @@ class CodeSolverState(BaseModel):
                 "attempts": 2
             }
         }
+
+
+# ============================================================================
+# EVALUATION MODELS (for benchmarking agents)
+# ============================================================================
+
+class EvaluateRequest(BaseModel):
+    """Request for evaluating agent solutions"""
+    agent_solutions: dict[str, str] = Field(
+        ...,
+        description="Dict mapping problem_id to solution code. E.g., {'p001': 'def two_sum...'}"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "agent_solutions": {
+                    "p001": "def two_sum(nums, target):\n    seen = set()\n    for num in nums:\n        if target - num in seen:\n            return [nums.index(target-num), nums.index(num)]\n        seen.add(num)\n    return []",
+                    "p002": "def is_palindrome(s):\n    clean = ''.join(c.lower() for c in s if c.isalnum())\n    return clean == clean[::-1]"
+                }
+            }
+        }
+
+
+class ProblemScore(BaseModel):
+    """Score for a single problem"""
+    problem_id: str = Field(..., description="Problem ID")
+    title: str = Field(..., description="Problem title")
+    difficulty: Literal["easy", "medium", "hard"] = Field(..., description="Problem difficulty")
+    passed_cases: int = Field(..., description="Number of test cases passed")
+    total_cases: int = Field(..., description="Total test cases")
+    reward: float = Field(..., description="Final reward (0.0-1.0)")
+    explanation: str = Field(..., description="Explanation of score")
+
+
+class EvaluationReport(BaseModel):
+    """Comprehensive evaluation report for an agent"""
+    total_score: float = Field(..., description="Overall score (0.0-1.0)")
+    by_difficulty: dict[Literal["easy", "medium", "hard"], float] = Field(
+        ..., description="Average score by difficulty"
+    )
+    by_problem: dict[str, ProblemScore] = Field(
+        ..., description="Detailed score for each problem"
+    )
+    rank: Literal["beginner", "intermediate", "advanced", "expert"] = Field(
+        ..., description="Performance tier"
+    )
+    feedback: str = Field(..., description="Detailed feedback on agent performance")
+    timestamp: str = Field(..., description="Evaluation timestamp")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "total_score": 0.78,
+                "by_difficulty": {"easy": 0.95, "medium": 0.78, "hard": 0.60},
+                "by_problem": {
+                    "p001": {
+                        "problem_id": "p001",
+                        "title": "Two Sum",
+                        "difficulty": "easy",
+                        "passed_cases": 5,
+                        "total_cases": 5,
+                        "reward": 1.0,
+                        "explanation": "Perfect solution using hashmap O(n)"
+                    }
+                },
+                "rank": "intermediate",
+                "feedback": "Strong on easy problems, struggles with DP on hard problems. Recommended: practice recursive solutions and dynamic programming patterns.",
+                "timestamp": "2024-04-06T20:45:00Z"
+            }
+        }

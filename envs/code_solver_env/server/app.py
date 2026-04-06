@@ -18,7 +18,8 @@ from models import (
     CodeAction, ResetResponse, StepResponse, EnvState,
     ManifestResponse, ProblemsListResponse, ProblemDetail,
     SessionListResponse, SessionInfo, LeaderboardResponse, LeaderboardEntry,
-    ProblemObservation, TestCaseResult
+    ProblemObservation, TestCaseResult, EvaluateRequest, EvaluationReport,
+    ProblemScore
 )
 from .code_solver_environment import CodeSolverEnvironment
 from .streaming import (
@@ -481,6 +482,145 @@ async def get_leaderboard(problem_id: Optional[str] = Query(None)):
     except Exception as e:
         logger.error(f"Leaderboard error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# EVALUATION ENDPOINT (for benchmarking agents)
+# ============================================================================
+
+@app.post("/evaluate", response_model=EvaluationReport)
+async def evaluate_agent(request: EvaluateRequest):
+    """
+    Evaluate an agent's solutions across multiple problems.
+    
+    This endpoint is used by judges/researchers to benchmark agent performance
+    across the entire problem set with a comprehensive scoring report.
+    """
+    try:
+        from .sandbox import execute_code_sandboxed
+        from .rewards import RewardCalculator
+        
+        problem_scores: dict[str, ProblemScore] = {}
+        difficulty_scores = {"easy": [], "medium": [], "hard": []}
+        all_rewards = []
+        
+        # Get all canonical problems for evaluation
+        canonical_problems = CANONICAL_PROBLEMS[:9]  # Use first 9 canonical problems
+        
+        for problem in canonical_problems:
+            problem_id = problem["problem_id"]
+            
+            # Skip if agent didn't provide solution for this problem
+            if problem_id not in request.agent_solutions:
+                logger.warning(f"Agent did not provide solution for {problem_id}")
+                problem_scores[problem_id] = ProblemScore(
+                    problem_id=problem_id,
+                    title=problem["title"],
+                    difficulty=problem["difficulty"],
+                    passed_cases=0,
+                    total_cases=len(problem["test_cases"]),
+                    reward=0.0,
+                    explanation="No solution provided for this problem"
+                )
+                all_rewards.append(0.0)
+                difficulty_scores[problem["difficulty"]].append(0.0)
+                continue
+            
+            agent_code = request.agent_solutions[problem_id]
+            
+            # Extract function name from signature
+            sig = problem["function_signature"]
+            func_name = sig.split("(")[0].replace("def ", "").strip()
+            
+            # Execute code against test cases using sandbox
+            try:
+                result = execute_code_sandboxed(
+                    code=agent_code,
+                    test_cases=problem["test_cases"],
+                    func_name=func_name,
+                    timeout=10
+                )
+                
+                test_results = result.get("results", [])
+                passed_count = sum(1 for r in test_results if r.get("passed", False))
+                error = result.get("error")
+                execution_time_ms = sum(r.get("time_ms", 0.0) for r in test_results)
+                
+            except Exception as e:
+                logger.error(f"Error evaluating {problem_id}: {e}")
+                test_results = []
+                passed_count = 0
+                error = str(e)
+                execution_time_ms = 0.0
+            
+            # Calculate reward
+            reward_data = RewardCalculator.calculate(
+                passed_cases=passed_count,
+                total_cases=len(problem["test_cases"]),
+                time_ms_total=execution_time_ms,
+                step_count=1,
+                code_lines=len(agent_code.split("\n")),
+                test_results=test_results,
+                error_message=error
+            )
+            
+            reward = reward_data["reward"]
+            all_rewards.append(reward)
+            difficulty_scores[problem["difficulty"]].append(reward)
+            
+            # Explanation
+            if passed_count == len(problem["test_cases"]):
+                explanation = f"Perfect: {passed_count}/{len(problem['test_cases'])} tests passed in {execution_time_ms:.0f}ms"
+            elif passed_count > 0:
+                explanation = f"Partial: {passed_count}/{len(problem['test_cases'])} tests passed"
+            else:
+                explanation = f"Failed: {error or 'all tests failed'}"
+            
+            problem_scores[problem_id] = ProblemScore(
+                problem_id=problem_id,
+                title=problem["title"],
+                difficulty=problem["difficulty"],
+                passed_cases=passed_count,
+                total_cases=len(problem["test_cases"]),
+                reward=reward,
+                explanation=explanation
+            )
+        
+        # Calculate average by difficulty
+        by_difficulty = {}
+        for diff in ["easy", "medium", "hard"]:
+            scores = difficulty_scores[diff]
+            by_difficulty[diff] = round(sum(scores) / len(scores), 3) if scores else 0.0
+        
+        # Overall score
+        total_score = round(sum(all_rewards) / len(all_rewards), 3) if all_rewards else 0.0
+        
+        # Determine rank
+        if total_score >= 0.9:
+            rank = "expert"
+            feedback = "Exceptional performance! Solves complex problems with optimal solutions. Ready for production RL training."
+        elif total_score >= 0.75:
+            rank = "advanced"
+            feedback = f"Strong solver. Excels at {', '.join([d for d in ['easy', 'medium', 'hard'] if by_difficulty[d] >= 0.8])} problems. May struggle with complex DP or graph algorithms."
+        elif total_score >= 0.50:
+            rank = "intermediate"
+            feedback = f"Decent performance on easier problems ({by_difficulty['easy']:.2f}). Struggles with hard problems ({by_difficulty['hard']:.2f}). Recommend: practice advanced data structures and algorithm strategies."
+        else:
+            rank = "beginner"
+            feedback = "Foundation level. Focus on understanding basic algorithms before attempting complex problems. Start with easy problems."
+        
+        return EvaluationReport(
+            total_score=total_score,
+            by_difficulty=by_difficulty,
+            by_problem=problem_scores,
+            rank=rank,
+            feedback=feedback,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+    except Exception as e:
+        logger.error(f"Evaluation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
 
 
 # ============================================================================
