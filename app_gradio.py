@@ -109,32 +109,45 @@ def get_leaderboard():
 
 async def get_problems_list():
     """Get list of available problems"""
-    from envs.code_solver_env.server.problems import CANONICAL_PROBLEMS
+    from envs.code_solver_env.server.problems import SOLVE_TASKS, REVIEW_TASKS, DEBUG_TASKS
 
-    problems_text = "| ID | Title | Difficulty | Cases |\n"
-    problems_text += "|----:|-------|-----------|-------|\n"
-
-    for p in CANONICAL_PROBLEMS:
-        problems_text += (
-            f"| {p['problem_id']} | {p['title']} | "
-            f"{p['difficulty']} | {len(p['test_cases'])} |\n"
-        )
+    problems_text = ""
+    
+    for task_type, tasks, emoji in [
+        ("SOLVE", SOLVE_TASKS, "💻"),
+        ("REVIEW", REVIEW_TASKS, "🔍"),
+        ("DEBUG", DEBUG_TASKS, "🐛"),
+    ]:
+        problems_text += f"\n#### {emoji} {task_type} Tasks ({len(tasks)} tasks)\n\n"
+        problems_text += "| ID | Title | Difficulty | Cases |\n"
+        problems_text += "|----:|-------|-----------|-------|\n"
+        
+        for p in tasks:
+            problems_text += (
+                f"| {p['task_id']} | {p['title']} | "
+                f"{p['difficulty']} | {len(p['test_cases'])} |\n"
+            )
 
     return problems_text
 
 
 # Create Gradio interface
-with gr.Blocks(title="APEX Code Solver", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="APEX Data Pipeline Engineer", theme=gr.themes.Soft()) as demo:
     gr.Markdown("""
-    # 🤖 APEX Code Solver
+    # 🤖 APEX Data Pipeline Engineer
     
-    An RL environment for training agents to solve coding problems.
+    An RL environment for training agents to **solve real-world data pipeline engineering tasks** using pandas, CSV, JSON, and ETL workflows.
+    
+    **Task Modes:**
+    - 💻 **SOLVE**: Write pipeline code from scratch (9 tasks)
+    - 🔍 **REVIEW**: Identify and fix bugs in data transformations (9 tasks)  
+    - 🐛 **DEBUG**: Fix crashing pipelines step-by-step (9 tasks)
     """)
 
     with gr.Tabs():
         # ====== TAB 1: Try It ======
         with gr.Tab("Try It"):
-            gr.Markdown("### Solve a Coding Problem")
+            gr.Markdown("### Solve a Data Pipeline Task")
 
             with gr.Row():
                 difficulty_select = gr.Dropdown(
@@ -175,12 +188,22 @@ with gr.Blocks(title="APEX Code Solver", theme=gr.themes.Soft()) as demo:
         # ====== TAB 2: API Docs ======
         with gr.Tab("API Docs"):
             gr.Markdown("""
-            ### Fastapi Documentation
+            ### REST & WebSocket APIs
             
-            This environment exposes REST and WebSocket APIs
-            documented at `/docs` and `/redoc` endpoints.
+            This environment provides REST and WebSocket endpoints for programmatic access:
             
-            See **Manifest Endpoint** for auto-discovery.
+            - **`POST /reset`** - Start a new episode
+            - **`POST /step`** - Submit code and get reward  
+            - **`GET /manifest`** - Discover environment capabilities
+            - **`GET /health`** - Health check
+            
+            Full API documentation at the `/docs` endpoint when running locally.
+            
+            **Environment Details:**
+            - 18 real-world data pipeline tasks
+            - Deterministic rewards (0.0 to 1.0)
+            - Sandboxed pandas code execution
+            - Multi-session support with UUIDs
             """)
 
         # ====== TAB 3: Leaderboard ======
@@ -196,10 +219,15 @@ with gr.Blocks(title="APEX Code Solver", theme=gr.themes.Soft()) as demo:
             # Load on start
             demo.load(get_leaderboard, outputs=[leaderboard_display])
 
-        # ====== TAB 4: Problems ======
-        with gr.Tab("Problems"):
+        # ====== TAB 4: Tasks ======
+        with gr.Tab("Tasks"):
+            gr.Markdown("""
+            ### Available Data Pipeline Tasks
+            
+            **18 Total Tasks** (6 per mode × 3 difficulties)
+            """)
             problems_display = gr.Markdown("")
-            refresh_btn2 = gr.Button("Refresh Problems")
+            refresh_btn2 = gr.Button("Refresh Tasks")
             
             refresh_btn2.click(
                 get_problems_list,
