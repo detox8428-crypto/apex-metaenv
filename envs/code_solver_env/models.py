@@ -1,7 +1,7 @@
-"""Pydantic v2 models for APEX Data Pipeline Engineer Environment"""
+"""Pydantic v2 models for APEX Engineering Benchmark - Multi-Domain Environment"""
 
 from pydantic import BaseModel, Field
-from typing import Optional, Literal
+from typing import Optional, Literal, Dict, Any
 from datetime import datetime
 
 
@@ -58,19 +58,77 @@ class ReviewSubmission(BaseModel):
         }
 
 
+class IncidentContext(BaseModel):
+    """Incident report for incident debugging domain"""
+    incident_report: str = Field(..., description="User-facing incident report (e.g., 'Service returning 500 since 14:32 UTC')")
+    error_logs: str = Field(..., description="Relevant error log lines")
+    deploy_info: Optional[str] = Field(None, description="Information about recent deployment")
+    metrics: Optional[Dict[str, Any]] = Field(None, description="Metrics showing the problem (p99_latency, error_rate, memory, etc.)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "incident_report": "Service returning HTTP 500 starting 14:32 UTC",
+                "error_logs": "AttributeError: 'NoneType' has no attribute 'email'\n  File 'users.py', line 42, in get_user_profile",
+                "deploy_info": "Deployment at 14:30 UTC changed User.get() method",
+                "metrics": {
+                    "error_rate": 0.15,
+                    "p99_latency": 8000,
+                    "error_type": "AttributeError"
+                }
+            }
+        }
+
+
+class CodeReviewSubmission(BaseModel):
+    """Agent's code review submission for code_review domain"""
+    problem_identified: str = Field(..., description="What specific problem exists in the code")
+    production_impact: str = Field(..., description="Why this matters in production (scale, performance, data loss, etc.)")
+    fix_approach: str = Field(..., description="How to fix it conceptually")
+    fixed_code: str = Field(..., description="Corrected version of the code")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "problem_identified": "N+1 query pattern: loops through users and queries database once per user",
+                "production_impact": "With 10,000 users, this makes 10,000 queries instead of 1, causing timeout at scale",
+                "fix_approach": "Use batch query with IN clause or ORM bulk fetch",
+                "fixed_code": "def get_user_orders(user_ids):\n    return db.query(Orders).filter(Orders.user_id.in_(user_ids)).all()"
+            }
+        }
+
+
+class IncidentFixSubmission(BaseModel):
+    """Agent submission for incident debugging"""
+    diagnosis: str = Field(..., description="Analysis of what's wrong")
+    fixed_code: str = Field(..., description="Corrected code")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "diagnosis": "User.get() returns None instead of raising exception, causing AttributeError on null email access",
+                "fixed_code": "def get_user(user_id):\n    user = db.query(User).filter(User.id == user_id).first()\n    if not user:\n        raise UserNotFound(f'User {user_id} not found')\n    return user"
+            }
+        }
+
+
+
 class PipelineObservation(BaseModel):
-    """Observation: task description and current state"""
+    """Observation: task description and current state (works for all 3 domains)"""
     task_id: str = Field(..., description="Unique task ID")
+    domain: Literal["data_pipeline", "code_review", "incident_debug"] = Field(..., description="Domain: data_pipeline, code_review, or incident_debug")
     title: str = Field(..., description="Task title")
     description: str = Field(..., description="Detailed task description")
     task_type: Literal["solve", "review", "debug"] = Field(..., description="Task mode")
     difficulty: Literal["easy", "medium", "hard"] = Field(..., description="Task difficulty")
-    function_signature: str = Field(..., description="Required function signature")
-    data_sample: DataSample = Field(..., description="Sample data for the task")
+    function_signature: Optional[str] = Field(None, description="Required function signature (for data_pipeline domain)")
+    data_sample: Optional[DataSample] = Field(None, description="Sample data for the task (for data_pipeline domain)")
     current_code: Optional[str] = Field(None, description="Broken code (for review/debug tasks)")
+    incident: Optional[IncidentContext] = Field(None, description="Incident report (for incident_debug domain)")
+    code_context: Optional[str] = Field(None, description="Broken code context (for code_review, incident_debug domains)")
     error_message: Optional[str] = Field(None, description="Crash message (for debug tasks)")
     visible_test_results: Optional[list] = Field(None, description="What passed/failed (visible only)")
-    feedback: Optional[str] = Field(None, description="Step feedback like 'Test 1 passed. Test 2 failed...'")
+    feedback: Optional[str] = Field(None, description="Step feedback like 'Test 1 passed. Test 2 failed...' or 'Fix revealed next symptom...'")
     passed_cases: int = Field(..., description="Number of passed test cases")
     total_cases: int = Field(..., description="Total number of test cases")
     step_count: int = Field(..., description="Number of steps taken in this episode")
@@ -80,6 +138,7 @@ class PipelineObservation(BaseModel):
         json_schema_extra = {
             "example": {
                 "task_id": "easy-solve-001",
+                "domain": "data_pipeline",
                 "title": "Sales CSV Aggregator",
                 "description": "Write a function that aggregates total spend per customer from sales CSV",
                 "task_type": "solve",
@@ -165,6 +224,7 @@ class EnvState(BaseModel):
     """Internal session state"""
     session_id: str = Field(..., description="Unique session identifier")
     task_id: str = Field(..., description="Current task ID")
+    domain: Literal["data_pipeline", "code_review", "incident_debug"] = Field(..., description="Domain")
     task_type: Literal["solve", "review", "debug"] = Field(..., description="Task mode")
     step_count: int = Field(..., description="Number of steps taken")
     max_steps: int = Field(..., description="Maximum steps per episode")
@@ -178,6 +238,7 @@ class EnvState(BaseModel):
             "example": {
                 "session_id": "550e8400-e29b-41d4-a716-446655440000",
                 "task_id": "easy-solve-001",
+                "domain": "data_pipeline",
                 "task_type": "solve",
                 "step_count": 3,
                 "max_steps": 5,
