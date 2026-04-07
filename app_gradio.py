@@ -132,7 +132,7 @@ async def get_problems_list():
 
 
 # Create Gradio interface
-with gr.Blocks(title="APEX Data Pipeline Engineer", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="APEX Data Pipeline Engineer") as demo:
     gr.Markdown("""
     # 🤖 APEX Data Pipeline Engineer
     
