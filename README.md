@@ -1,14 +1,6 @@
----
-title: APEX Data Pipeline Engineer
-emoji: 🤖
-colorFrom: purple
-colorTo: blue
-sdk: docker
-app_file: app_gradio.py
-pinned: false
----
 
-# 🤖 APEX Data Pipeline Engineer – RL Environment
+
+#  APEX Data Pipeline Engineer – RL Environment
 
 **OpenEnv-Compliant | Production-Ready | Real-World Data Engineering Tasks**
 
