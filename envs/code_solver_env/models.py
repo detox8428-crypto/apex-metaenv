@@ -246,3 +246,67 @@ class ManifestResponse(BaseModel):
         }
 
 
+class TestCaseResult(BaseModel):
+    """Result of a single test case execution"""
+    case_index: int = Field(..., description="Test case index (0-based)")
+    passed: bool = Field(..., description="Whether test passed")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    time_ms: Optional[float] = Field(None, description="Execution time in milliseconds")
+
+
+class EvaluateRequest(BaseModel):
+    """Request to evaluate code"""
+    code: str = Field(..., description="Code to evaluate")
+    task_id: str = Field(..., description="Task ID to evaluate against")
+    session_id: Optional[str] = Field(None, description="Session ID")
+
+
+class EvaluationReport(BaseModel):
+    """Detailed evaluation report"""
+    task_id: str = Field(..., description="Task ID")
+    passed_cases: int = Field(..., description="Number of passed test cases")
+    total_cases: int = Field(..., description="Total test cases")
+    test_results: list[TestCaseResult] = Field(..., description="Individual test results")
+    reward: float = Field(..., description="Calculated reward")
+    error_message: Optional[str] = Field(None, description="Any error message")
+
+
+class ProblemScore(BaseModel):
+    """Score for a problem"""
+    problem_id: str = Field(..., description="Problem ID")
+    reward: float = Field(..., description="Reward achieved")
+    session_id: str = Field(..., description="Session that achieved it")
+    timestamp: datetime = Field(..., description="When achieved")
+
+
+class ProblemsListResponse(BaseModel):
+    """Response with list of problems"""
+    total: int = Field(..., description="Total number of problems")
+    problems: list[dict] = Field(..., description="Problem definitions")
+
+
+class ProblemDetail(BaseModel):
+    """Detailed problem definition"""
+    problem_id: str
+    title: str
+    description: str
+    difficulty: str
+    function_signature: str
+
+
+class LeaderboardEntry(BaseModel):
+    """Leaderboard entry"""
+    rank: int = Field(..., description="Leaderboard rank")
+    session_id: str = Field(..., description="Session ID")
+    problem_id: str = Field(..., description="Problem ID")
+    reward: float = Field(..., description="Reward achieved")
+    timestamp: datetime = Field(..., description="When achieved")
+
+
+class LeaderboardResponse(BaseModel):
+    """Response with leaderboard data"""
+    entries: list[LeaderboardEntry] = Field(..., description="Leaderboard entries")
+    count: int = Field(..., description="Number of entries")
+
+
+
