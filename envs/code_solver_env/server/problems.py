@@ -278,7 +278,9 @@ REVIEW_TASKS = [
                 "len(result) == 2",
                 "list(result.index)[0] == 'C001'"
             ]}
-        ]
+        ],
+        "visible_test_count": 2,
+        "hidden_test_count": 3
     },
     {
         "task_id": "easy-review-002",
@@ -300,7 +302,9 @@ REVIEW_TASKS = [
             {"csv": "order_id,amount\nO001,100\nO002,\nO003,150", "assertions": [
                 "isinstance(result, float)"
             ]}
-        ]
+        ],
+        "visible_test_count": 2,
+        "hidden_test_count": 3
     },
     {
         "task_id": "easy-review-003",
@@ -323,7 +327,9 @@ REVIEW_TASKS = [
                 "len(result) == 1",
                 "result.iloc[0]['amount'] == 1000"
             ]}
-        ]
+        ],
+        "visible_test_count": 2,
+        "hidden_test_count": 3
     },
     # ==================== MEDIUM REVIEW ====================
     {
@@ -347,7 +353,9 @@ REVIEW_TASKS = [
                 "len(result) == 2",
                 "result.iloc[1]['net'] == 200"
             ]}
-        ]
+        ],
+        "visible_test_count": 1,
+        "hidden_test_count": 2
     },
     {
         "task_id": "medium-review-002",
@@ -369,7 +377,9 @@ REVIEW_TASKS = [
             {"csv": "record_id,date\nR001,2024-01-15\nR002,2024-01-14", "assertions": [
                 "len(result) >= 2"
             ]}
-        ]
+        ],
+        "visible_test_count": 2,
+        "hidden_test_count": 3
     },
     {
         "task_id": "medium-review-003",
@@ -391,7 +401,9 @@ REVIEW_TASKS = [
             {"csv": "order_id,amount\nO001,100\nO002,200", "assertions": [
                 "len(result) == 1"
             ]}
-        ]
+        ],
+        "visible_test_count": 2,
+        "hidden_test_count": 3
     },
     # ==================== HARD REVIEW ====================
     {
@@ -414,7 +426,9 @@ REVIEW_TASKS = [
             {"csv": "id,value\n1,100\n2,200\n3,300", "assertions": [
                 "len(result) == 2"
             ]}
-        ]
+        ],
+        "visible_test_count": 1,
+        "hidden_test_count": 2
     },
     {
         "task_id": "hard-review-002",
@@ -436,7 +450,9 @@ REVIEW_TASKS = [
             {"csv": "id,timestamp\n1,2024-01-15 10:00:00", "assertions": [
                 "isinstance(result, pd.DataFrame)"
             ]}
-        ]
+        ],
+        "visible_test_count": 1,
+        "hidden_test_count": 2
     },
     {
         "task_id": "hard-review-003",
@@ -459,7 +475,9 @@ REVIEW_TASKS = [
                 "isinstance(result, pd.DataFrame)",
                 "result.iloc[0]['value'] == 300"
             ]}
-        ]
+        ],
+        "visible_test_count": 1,
+        "hidden_test_count": 2
     }
 ]
 
@@ -489,7 +507,9 @@ DEBUG_TASKS = [
                 "'revenue' in result.columns",
                 "result.iloc[0]['revenue'] == 100"
             ]}
-        ]
+        ],
+        "visible_test_count": 2,
+        "hidden_test_count": 3
     },
     {
         "task_id": "easy-debug-002",
@@ -510,7 +530,9 @@ DEBUG_TASKS = [
             {"csv": "record_id,date\nR001,2024-01-15", "assertions": [
                 "'days_old' in result.columns"
             ]}
-        ]
+        ],
+        "visible_test_count": 2,
+        "hidden_test_count": 3
     },
     {
         "task_id": "easy-debug-003",
@@ -531,7 +553,9 @@ DEBUG_TASKS = [
             {"csv": "id,value\n1,100\n2,200", "assertions": [
                 "len(result) == 2"
             ]}
-        ]
+        ],
+        "visible_test_count": 2,
+        "hidden_test_count": 3
     },
     # ==================== MEDIUM DEBUG ====================
     {
@@ -553,7 +577,9 @@ DEBUG_TASKS = [
             {"csv": "id,amount,status\n1,100,active\n2,200,inactive", "assertions": [
                 "result.iloc[0]['amount'] == 110"
             ]}
-        ]
+        ],
+        "visible_test_count": 1,
+        "hidden_test_count": 2
     },
     {
         "task_id": "medium-debug-002",
@@ -575,7 +601,9 @@ DEBUG_TASKS = [
                 "isinstance(result, pd.DataFrame)",
                 "result.iloc[0]['value'] == 300"
             ]}
-        ]
+        ],
+        "visible_test_count": 1,
+        "hidden_test_count": 2
     },
     {
         "task_id": "medium-debug-003",
@@ -619,7 +647,9 @@ DEBUG_TASKS = [
                 "isinstance(result, pd.Series)",
                 "result.iloc[0] == 100"
             ]}
-        ]
+        ],
+        "visible_test_count": 1,
+        "hidden_test_count": 2
     },
     {
         "task_id": "hard-debug-002",
@@ -641,7 +671,9 @@ DEBUG_TASKS = [
                 "result['rank'].notna().all()",
                 "result.iloc[1]['rank'] > result.iloc[0]['rank']"
             ]}
-        ]
+        ],
+        "visible_test_count": 1,
+        "hidden_test_count": 2
     },
     {
         "task_id": "hard-debug-003",
@@ -663,7 +695,9 @@ DEBUG_TASKS = [
                 "isinstance(result, float)",
                 "result == 301.25"
             ]}
-        ]
+        ],
+        "visible_test_count": 1,
+        "hidden_test_count": 2
     }
 ]
 
