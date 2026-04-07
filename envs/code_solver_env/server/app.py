@@ -459,9 +459,8 @@ async def step_env(
             session_id=sid,
             observation=observation,
             reward=reward,
-            terminated=done,
-            truncated=False,
-            info={"reward_breakdown": reward_result.get("breakdown", {})}
+            done=done,
+            info={"reward_breakdown": reward_result.get("breakdown", {}), "passed_cases": state.get("passed_cases", 0), "total_cases": task["visible_test_count"] + task["hidden_test_count"]}
         )
         
     except ValueError as e:
