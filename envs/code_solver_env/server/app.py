@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logging
 import json
+import random
 from datetime import datetime
 from typing import Optional
 
@@ -340,7 +341,6 @@ async def step_env(
             hidden_total = task["hidden_test_count"]
             
             # Simulate test execution (in production, actually run tests)
-            import random
             if action.code.strip():
                 visible_passed = min(visible_total, max(0, random.randint(visible_total - 1, visible_total)))
                 hidden_passed = int(visible_passed / visible_total * hidden_total) if visible_total > 0 else 0
