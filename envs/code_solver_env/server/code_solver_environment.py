@@ -19,9 +19,10 @@ from models import (
 from .sandbox import execute_code_sandboxed
 from .rewards import RewardCalculator
 from .problems import (
-    CANONICAL_PROBLEMS, BUGGY_PROBLEMS, get_random_canonical_problem,
-    get_canonical_problem, get_problem_by_id, get_random_buggy_problem,
-    ProceduralProblemGenerator, get_problems_by_difficulty, get_buggy_problems_by_difficulty
+    CANONICAL_PROBLEMS, BUGGY_PROBLEMS,
+    get_canonical_problem, get_problem_by_id,
+    ProceduralProblemGenerator, get_problems_by_difficulty, get_buggy_problems_by_difficulty,
+    get_random_problem_by_domain
 )
 
 logger = logging.getLogger(__name__)
@@ -283,6 +284,7 @@ class CodeSolverEnvironment:
         session_id: Optional[str] = None,
         difficulty: Optional[str] = None,
         mode: str = "solve",  # solve or review
+        domain: str = "data_pipeline",  # data_pipeline, code_review, or incident_debug
         seed: Optional[int] = None,
         problem_source: str = "mixed"  # canonical, procedural, mixed
     ) -> Tuple[str, PipelineObservation]:
@@ -293,6 +295,7 @@ class CodeSolverEnvironment:
             session_id: If provided, reuse session; otherwise create new
             difficulty: Filter by difficulty (easy/medium/hard). If None, uses curriculum learning.
             mode: Task mode (solve=write code, review=fix buggy code)
+            domain: Problem domain (data_pipeline, code_review, incident_debug)
             seed: Seed for procedural generation (if None, random)
             problem_source: Problem source (canonical, procedural, mixed)
             
@@ -320,50 +323,72 @@ class CodeSolverEnvironment:
             session["current_difficulty"] = difficulty
             session["current_mode"] = mode
 
-        # Select problem based on mode
-        if mode == "review":
-            # Get a buggy problem for code review
-            problem = get_random_buggy_problem(difficulty) or get_random_buggy_problem()
-            source = "buggy"
-        else:
-            # Get a canonical or procedural problem for solving
-            if problem_source == "procedural":
-                if seed is None:
-                    seed = random.randint(0, 2**31 - 1)
-                try:
-                    gen = ProceduralProblemGenerator(seed=seed)
-                    problem = gen.generate(
-                        random.choice(["two_sum", "palindrome", "sorting"]),
-                        difficulty or "easy"
-                    )
-                    source = "procedural"
-                except Exception as e:
-                    logger.error(f"Error generating procedural problem with seed {seed}: {e}", exc_info=True)
-                    # Fallback to canonical problem
-                    problem = get_random_canonical_problem(difficulty) or get_random_canonical_problem()
-                    source = "canonical"
-            elif problem_source == "canonical":
-                problem = get_random_canonical_problem(difficulty) or get_random_canonical_problem()
-                source = "canonical"
-            else:  # mixed
-                if random.choice([True, False]):
+        # Select problem based on domain and mode
+        if domain == "data_pipeline":
+            # Legacy data_pipeline domain with review vs solve modes
+            # Use get_random_problem_by_domain for all problem selection (ensures normalization)
+            if mode == "review":
+                # Get a buggy problem for code review
+                problem = get_random_problem_by_domain(domain, difficulty, mode="review") or get_random_problem_by_domain(domain, mode="review")
+                source = "buggy"
+            else:
+                # Get a canonical or procedural problem for solving
+                if problem_source == "procedural":
                     if seed is None:
                         seed = random.randint(0, 2**31 - 1)
                     try:
                         gen = ProceduralProblemGenerator(seed=seed)
                         problem = gen.generate(
-                            random.choice(["two_sum", "palindrome"]),
+                            random.choice(["two_sum", "palindrome", "sorting"]),
                             difficulty or "easy"
                         )
+                        # Normalize procedural problem too
+                        if "task_id" not in problem:
+                            problem["task_id"] = problem.get("problem_id", "procedural-" + str(seed))
+                        if "problem_id" not in problem:
+                            problem["problem_id"] = problem["task_id"]
+                        if "task_type" not in problem:
+                            problem["task_type"] = "solve"
                         source = "procedural"
                     except Exception as e:
-                        logger.error(f"Error generating procedural problem (mixed mode) with seed {seed}: {e}", exc_info=True)
-                        # Fallback to canonical
-                        problem = get_random_canonical_problem(difficulty) or get_random_canonical_problem()
+                        logger.error(f"Error generating procedural problem with seed {seed}: {e}", exc_info=True)
+                        # Fallback to canonical problem
+                        problem = get_random_problem_by_domain(domain, difficulty, mode="solve") or get_random_problem_by_domain(domain)
                         source = "canonical"
-                else:
-                    problem = get_random_canonical_problem(difficulty) or get_random_canonical_problem()
+                elif problem_source == "canonical":
+                    problem = get_random_problem_by_domain(domain, difficulty, mode="solve") or get_random_problem_by_domain(domain)
                     source = "canonical"
+                else:  # mixed
+                    if random.choice([True, False]):
+                        if seed is None:
+                            seed = random.randint(0, 2**31 - 1)
+                        try:
+                            gen = ProceduralProblemGenerator(seed=seed)
+                            problem = gen.generate(
+                                random.choice(["two_sum", "palindrome"]),
+                                difficulty or "easy"
+                            )
+                            # Normalize procedural problem too
+                            if "task_id" not in problem:
+                                problem["task_id"] = problem.get("problem_id", "procedural-" + str(seed))
+                            if "problem_id" not in problem:
+                                problem["problem_id"] = problem["task_id"]
+                            if "task_type" not in problem:
+                                problem["task_type"] = "solve"
+                            source = "procedural"
+                        except Exception as e:
+                            logger.error(f"Error generating procedural problem (mixed mode) with seed {seed}: {e}", exc_info=True)
+                            # Fallback to canonical
+                            problem = get_random_problem_by_domain(domain, difficulty, mode="solve") or get_random_problem_by_domain(domain)
+                            source = "canonical"
+                    else:
+                        problem = get_random_problem_by_domain(domain, difficulty, mode="solve") or get_random_problem_by_domain(domain)
+                        source = "canonical"
+        else:
+            # New domains: code_review, incident_debug
+            # These don't use procedural generation or review mode distinction
+            problem = get_random_problem_by_domain(domain, difficulty) or get_random_problem_by_domain(domain)
+            source = "canonical"
 
         # Update session
         async with self.session_manager.lock:
@@ -375,18 +400,20 @@ class CodeSolverEnvironment:
             session["problem_source"] = source
             session["max_steps"] = self.max_steps
             session["current_mode"] = mode  # Store task mode (solve or review)
+            session["current_domain"] = domain  # Store domain (data_pipeline, code_review, incident_debug)
 
         # Create observation
         if mode == "review":
             # For review mode, include buggy code in description
-            description = f"{problem['description']}\n\nThe following code has a bug. Find and fix it:\n\n{problem['buggy_code']}"
+            buggy = problem.get('buggy_code', problem.get('current_code', 'def func():\n    pass'))
+            description = f"{problem['description']}\n\nThe following code has a bug. Find and fix it:\n\n{buggy}"
             observation = self._problem_to_observation(
                 problem, 0, self.max_steps, passed_cases=0, total_cases=len(problem["test_cases"]),
-                description_override=description
+                description_override=description, domain=domain
             )
         else:
             observation = self._problem_to_observation(
-                problem, 0, self.max_steps, passed_cases=0, total_cases=len(problem["test_cases"])
+                problem, 0, self.max_steps, passed_cases=0, total_cases=len(problem["test_cases"]), domain=domain
             )
 
         return session_id, observation
@@ -394,14 +421,16 @@ class CodeSolverEnvironment:
     async def step(
         self,
         session_id: str,
-        code: str
+        code: Optional[str] = None,
+        review: Optional[Dict] = None
     ) -> Tuple[PipelineObservation, float, bool, bool, Dict[str, Any]]:
         """
-        Execute code and return results.
+        Execute action and return results.
         
         Args:
             session_id: Session identifier
-            code: Solution code to execute
+            code: Solution code to execute (for solve/debug modes)
+            review: Code review submission (for review mode)
             
         Returns:
             (observation, reward, terminated, truncated, info)
@@ -422,35 +451,74 @@ class CodeSolverEnvironment:
             session["step_count"] += 1
             step_count = session["step_count"]
 
-        # Parse function name from signature
-        func_sig = problem["function_signature"]
-        func_name = func_sig.split("(")[0].replace("def ", "").strip()
+        # Handle based on mode
+        if current_mode == "review" and review:
+            # For review mode, just score the review
+            passed_cases = 5  #If review provided, count as some passes
+            total_cases = len(problem.get("test_cases", [1] * 5))
+            error_type = None
+            error_message = None
+            test_results = []
+        elif current_mode == "debug" and code:
+            # For debug mode, execute the fix
+            func_sig = problem.get("function_signature", "def func():")
+            func_name = func_sig.split("(")[0].replace("def ", "").strip() if func_sig else "func"
 
-        # Execute code in sandbox
-        exec_result = execute_code_sandboxed(
-            code=code,
-            test_cases=problem["test_cases"],
-            func_name=func_name,
-            timeout=10
-        )
+            # Execute code in sandbox
+            exec_result = execute_code_sandboxed(
+                code=code,
+                test_cases=problem.get("test_cases", []),
+                func_name=func_name,
+                timeout=10
+            )
 
-        # Convert sandbox results to our model
-        test_results = []
-        if exec_result.get("results"):
-            for result in exec_result["results"]:
-                test_results.append(
-                    TestCaseResult(
-                        case_index=result.get("case_index", 0),
-                        passed=result.get("passed", False),
-                        error=result.get("error"),
-                        time_ms=result.get("time_ms")
+            # Convert sandbox results to our model
+            test_results = []
+            if exec_result.get("results"):
+                for result in exec_result["results"]:
+                    test_results.append(
+                        TestCaseResult(
+                            case_index=result.get("case_index", 0),
+                            passed=result.get("passed", False),
+                            error=result.get("error"),
+                            time_ms=result.get("time_ms")
+                        )
                     )
-                )
 
-        passed_cases = exec_result.get("passed_count", 0)
-        total_cases = len(problem["test_cases"])
-        error_type = exec_result.get("error_type")
-        error_message = exec_result.get("error")
+            passed_cases = exec_result.get("passed_count", 0)
+            total_cases = len(problem.get("test_cases", []))
+            error_type = exec_result.get("error_type")
+            error_message = exec_result.get("error")
+        else:
+            # For solve mode (default)
+            func_sig = problem.get("function_signature", "def func():")
+            func_name = func_sig.split("(")[0].replace("def ", "").strip() if func_sig else "func"
+
+            # Execute code in sandbox
+            exec_result = execute_code_sandboxed(
+                code=code or "pass",
+                test_cases=problem.get("test_cases", []),
+                func_name=func_name,
+                timeout=10
+            )
+
+            # Convert sandbox results to our model
+            test_results = []
+            if exec_result.get("results"):
+                for result in exec_result["results"]:
+                    test_results.append(
+                        TestCaseResult(
+                            case_index=result.get("case_index", 0),
+                            passed=result.get("passed", False),
+                            error=result.get("error"),
+                            time_ms=result.get("time_ms")
+                        )
+                    )
+
+            passed_cases = exec_result.get("passed_count", 0)
+            total_cases = len(problem.get("test_cases", []))
+            error_type = exec_result.get("error_type")
+            error_message = exec_result.get("error")
 
         # Calculate reward (handle review mode)
         if current_mode == "review":
@@ -462,29 +530,11 @@ class CodeSolverEnvironment:
             else:
                 final_reward = 0.1 * passed_cases / total_cases  # Minimal credit for partial fixes
         else:
-            # In solve mode, use standard reward calculation
-            time_ms_total = sum(r.time_ms or 0 for r in test_results)
-            code_lines = len(code.strip().split('\n'))
-
-            reward_dict = RewardCalculator.calculate(
-                passed_cases=passed_cases,
-                total_cases=total_cases,
-                time_ms_total=time_ms_total,
-                step_count=step_count,
-                code_lines=code_lines,
-                error_type=error_type,
-                error_message=error_message,
-                test_results=[
-                    {
-                        "case_index": r.case_index,
-                        "passed": r.passed,
-                        "error": r.error,
-                        "time_ms": r.time_ms
-                    }
-                    for r in test_results
-                ]
-            )
-            final_reward = reward_dict["final_reward"]
+            # In solve mode, calculate reward based on test cases passed
+            # Simple reward: proportion of tests passed, with penalty for extra steps
+            base_reward = passed_cases / total_cases if total_cases > 0 else 0.0
+            step_penalty = 0.05 * (step_count - 1)  # Penalty for extra steps
+            final_reward = max(0.0, min(1.0, base_reward - step_penalty))
 
         # Update session
         async with self.session_manager.lock:
@@ -515,15 +565,18 @@ class CodeSolverEnvironment:
             )
 
         # Create observation
+        current_domain = session.get("current_domain", "data_pipeline")
         if current_mode == "review":
-            description = f"{problem['description']}\n\nThe following code has a bug. Find and fix it:\n\n{problem['buggy_code']}"
+            buggy = problem.get('buggy_code', problem.get('current_code', 'def func():\n    pass'))
+            description = f"{problem['description']}\n\nThe following code has a bug. Find and fix it:\n\n{buggy}"
             observation = self._problem_to_observation(
                 problem, step_count, self.max_steps,
                 passed_cases=passed_cases,
                 total_cases=total_cases,
                 test_results=test_results,
                 error_message=error_message,
-                description_override=description
+                description_override=description,
+                domain=current_domain
             )
         else:
             observation = self._problem_to_observation(
@@ -531,7 +584,8 @@ class CodeSolverEnvironment:
                 passed_cases=passed_cases,
                 total_cases=total_cases,
                 test_results=test_results,
-                error_message=error_message
+                error_message=error_message,
+                domain=current_domain
             )
 
         # Build info dict
@@ -547,13 +601,10 @@ class CodeSolverEnvironment:
 
         if current_mode == "solve":
             info.update({
-                "primary_reward": reward_dict.get("primary_reward", 0),
-                "efficiency_bonus": reward_dict.get("efficiency_bonus", 0),
-                "attempt_penalty": reward_dict.get("attempt_penalty", 0),
-                "per_test_results": reward_dict.get("per_test_results", []),
-                "time_ms_total": reward_dict.get("time_ms_total", 0),
+                "primary_reward": final_reward,
+                "attempt_penalty": 0.05 * (step_count - 1),
                 "code_lines": len(code.strip().split('\n')),
-                "reward_breakdown": reward_dict.get("reward_breakdown", {}),  # Rich reward signals
+                "reward_breakdown": {"test_success_ratio": passed_cases / total_cases if total_cases > 0 else 0},
             })
 
         return observation, final_reward, terminated, truncated, info
@@ -585,26 +636,31 @@ class CodeSolverEnvironment:
         total_cases: int = 0,
         test_results: list = None,
         error_message: str = None,
-        description_override: str = None
+        description_override: str = None,
+        domain: str = "data_pipeline"
     ) -> PipelineObservation:
         """Convert problem dict to ProblemObservation model"""
         if test_results is None:
             test_results = []
 
         # Use override description if provided (for review mode)
-        description = description_override if description_override else problem["description"]
+        description = description_override if description_override else problem.get("description", "")
+        
+        # Normalize task_id/problem_id (ensure both exist)
+        problem_id = problem.get("problem_id") or problem.get("task_id", "")
+        task_id = problem.get("task_id") or problem.get("problem_id", "")
+        task_type = problem.get("task_type", "solve")
 
         return PipelineObservation(
-            problem_id=problem["problem_id"],
-            title=problem["title"],
+            task_id=task_id,
+            domain=domain,
+            task_type=task_type,
+            title=problem.get("title", ""),
             description=description,
-            function_signature=problem["function_signature"],
-            examples=problem["examples"],
-            constraints=problem["constraints"],
-            difficulty=problem["difficulty"],
-            test_results=test_results,
+            function_signature=problem.get("function_signature", ""),
+            difficulty=problem.get("difficulty", "easy"),
             passed_cases=passed_cases,
-            total_cases=total_cases or len(problem["test_cases"]),
+            total_cases=total_cases or len(problem.get("test_cases", [])),
             error_message=error_message,
             step_count=step_count,
             max_steps=max_steps
