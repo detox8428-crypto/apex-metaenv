@@ -1,4 +1,14 @@
-﻿# APEX Data Pipeline Engineer RL Environment
+﻿---
+title: APEX Data Pipeline Engineer
+emoji: 🤖
+colorFrom: purple
+colorTo: blue
+sdk: docker
+app_file: server/app.py
+pinned: false
+---
+
+# APEX Data Pipeline Engineer RL Environment
 
 **Version 1.0** | OpenEnv-compliant | Production-ready with real-world data engineering tasks
 
