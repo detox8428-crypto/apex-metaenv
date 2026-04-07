@@ -1,23 +1,13 @@
-# Core dependencies
-python-dateutil>=2.8.0
+# APEX Engineering Benchmark
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
 pydantic>=2.0.0
-fastapi>=0.110.0
-uvicorn[standard]>=0.27.0
-websockets>=12.0
+pandas>=2.0.0
+python-multipart>=0.0.6
+numpy>=1.24.0
 requests>=2.31.0
 pyyaml>=6.0
-python-dotenv>=1.0.0
-loguru>=0.7.2
 
-# Data processing & ML
-pandas>=1.5.0
-numpy>=1.24.0
-scipy>=1.10.0
-
-# UI
-gradio>=4.0.0
-
-# Python compatibility
 importlib-metadata>=6.0; python_version < '3.8'
 
 # Testing

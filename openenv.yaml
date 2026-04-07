@@ -1,7 +1,36 @@
 spec_version: 1
-name: apex-data-pipeline
-description: "RL environment where an agent acts as a data engineer - writing, reviewing, and debugging real-world data pipelines using pandas, CSV, JSON, and ETL tasks"
+name: apex-engineering-benchmark
+version: "3.0.0"
+description: >
+  Multi-turn RL benchmark for real engineering tasks.
+  Tests code-capable LLMs on 3 domains: data pipelines, production code review, and incident debugging.
+  Skills that matter in production but are absent from existing benchmarks like HumanEval and MBPP.
+  
+  Domains:
+  - data_pipeline: 11 tasks (6 existing + HARD-3 CDC + HARD-4 Schema Drift)
+  - code_review: 9 tasks (production code architectural/performance issues - NEW)
+  - incident_debug: 9 tasks (multi-step SRE scenarios with progressive revelation - NEW)
 type: rl-environment
 runtime: docker
 app: run_server.py
 port: 8000
+tagline: "The multi-turn RL benchmark for real engineering tasks"
+benchmarks:
+  - name: data_pipeline
+    description: "Write, review, and debug data pipelines using pandas, CSV, JSON, ETL"
+    tasks: 11
+    difficulties: [easy, medium, hard]
+  - name: code_review
+    description: "Review production code for architectural issues, explain production impact"
+    tasks: 9
+    difficulties: [easy, medium, hard]
+  - name: incident_debug
+    description: "Debug multi-step incidents as SRE with logs and metrics"
+    tasks: 9
+    difficulties: [easy, medium, hard]
+total_tasks: 29
+use_cases:
+  - Benchmark code-capable LLMs (CodeLlama, GPT-4, Gemini) on real engineering work
+  - Train RL agents as engineering copilots
+  - Evaluate multi-turn reasoning beyond single-shot metrics
+  - Research on iterative error recovery and distributed system debugging
