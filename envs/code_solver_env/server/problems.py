@@ -666,3 +666,99 @@ def select_random_task(task_type: str = None, difficulty: str = None) -> Dict[st
     
     return random.choice(all_tasks).copy()
 
+
+# ============================================================================
+# COMPATIBILITY ALIASES FOR LEGACY CODE
+# ============================================================================
+
+# Legacy names (map v3.0 tasks to old naming conventions)
+CANONICAL_PROBLEMS = SOLVE_TASKS
+BUGGY_PROBLEMS = REVIEW_TASKS
+
+def get_random_canonical_problem(difficulty: str = None) -> Dict[str, Any]:
+    """Get a random problem from SOLVE_TASKS (legacy name)"""
+    try:
+        tasks = [t for t in SOLVE_TASKS if not difficulty or t['difficulty'] == difficulty]
+        if not tasks:
+            tasks = SOLVE_TASKS
+        return random.choice(tasks).copy()
+    except:
+        return None
+
+def get_canonical_problem(problem_id: str) -> Dict[str, Any]:
+    """Get a specific canonical problem by ID"""
+    try:
+        return get_task_by_id(problem_id)
+    except:
+        return None
+
+def get_problem_by_id(problem_id: str) -> Dict[str, Any]:
+    """Get a problem by ID (legacy name, alias for get_task_by_id)"""
+    return get_task_by_id(problem_id)
+
+def get_random_buggy_problem(difficulty: str = None) -> Dict[str, Any]:
+    """Get a random problem from REVIEW_TASKS (legacy name)"""
+    try:
+        tasks = [t for t in REVIEW_TASKS if not difficulty or t['difficulty'] == difficulty]
+        if not tasks:
+            tasks = REVIEW_TASKS
+        return random.choice(tasks).copy()
+    except:
+        return None
+
+def get_problems_by_difficulty(difficulty: str) -> List[Dict[str, Any]]:
+    """Get all problems of a specific difficulty (legacy compatibility)"""
+    return [t for t in get_all_tasks() if t['difficulty'] == difficulty]
+
+def get_buggy_problems_by_difficulty(difficulty: str) -> List[Dict[str, Any]]:
+    """Get buggy problems (review tasks) by difficulty (legacy compatibility)"""
+    return [t for t in REVIEW_TASKS if t['difficulty'] == difficulty]
+
+
+# ============================================================================
+# PROCEDURAL PROBLEM GENERATOR (Placeholder)
+# ============================================================================
+
+class ProceduralProblemGenerator:
+    """Generate synthetic problems procedurally (legacy placeholder)
+    
+    This is a compatibility class for legacy code. Returns fixed canonical
+    problems instead of truly procedural generation.
+    """
+    
+    def __init__(self, seed: int = None):
+        """Initialize generator with optional seed"""
+        self.seed = seed
+        if seed is not None:
+            random.seed(seed)
+    
+    def generate(self, problem_type: str, difficulty: str) -> Dict[str, Any]:
+        """Generate a problem of given type and difficulty
+        
+        Maps to canonical tasks since v3.0 uses fixed task definitions.
+        """
+        # Map legacy types to v3.0 task types
+        task_type_map = {
+            "two_sum": "solve",
+            "palindrome": "solve",
+            "sorting": "solve",
+        }
+        
+        task_type = task_type_map.get(problem_type, "solve")
+        
+        # Get appropriate task
+        if task_type == "solve":
+            tasks = [t for t in SOLVE_TASKS if t['difficulty'] == difficulty]
+        else:
+            tasks = [t for t in SOLVE_TASKS if t['difficulty'] == difficulty]
+        
+        if not tasks:
+            # Fallback to any difficulty if none match
+            tasks = [t for t in SOLVE_TASKS if t.get('title', '').lower().find(problem_type) >= 0]
+        
+        if not tasks:
+            tasks = SOLVE_TASKS
+        
+        return random.choice(tasks).copy()
+
+
