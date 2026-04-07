@@ -239,6 +239,14 @@ async def reset_env(request: ResetRequest):
         if request.difficulty not in ["easy", "medium", "hard"]:
             raise ValueError("difficulty must be 'easy', 'medium', or 'hard'")
         
+        # Map task_type to domain
+        domain_map = {
+            "solve": "data_pipeline",
+            "review": "code_review",
+            "debug": "incident_debug"
+        }
+        domain = domain_map[request.task_type]
+        
         # Generate session ID
         session_id = request.session_id or str(uuid.uuid4())
         
@@ -247,19 +255,24 @@ async def reset_env(request: ResetRequest):
         if not task:
             raise ValueError(f"No task found for {request.task_type}/{request.difficulty}")
         
-        # Create observation
+        # Create observation with all required fields
         observation = PipelineObservation(
             task_id=task["task_id"],
+            domain=domain,  # CRITICAL: Include domain field
             title=task["title"],
             task_type=task["task_type"],
             difficulty=task["difficulty"],
             description=task["description"],
-            function_signature=task["function_signature"],
-            data_sample=task["data_sample"],
+            function_signature=task.get("function_signature"),
+            data_sample=task.get("data_sample"),
             current_code=task.get("current_code"),
+            incident=task.get("incident"),
+            code_context=task.get("code_context"),
             error_message=task.get("error_message"),
+            visible_test_results=task.get("visible_test_results"),
+            feedback=None,
             passed_cases=0,
-            total_cases=task["visible_test_count"] + task["hidden_test_count"],
+            total_cases=task.get("visible_test_count", 3) + task.get("hidden_test_count", 2),
             step_count=0,
             max_steps=5
         )
@@ -270,6 +283,7 @@ async def reset_env(request: ResetRequest):
         env.session_states[session_id] = {
             "task": task,
             "task_type": request.task_type,
+            "domain": domain,
             "step_count": 0,
             "passed_cases": 0,
             "previous_passed": 0
