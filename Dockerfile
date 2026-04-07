@@ -14,6 +14,6 @@ EXPOSE 7860
 ENV HOST=0.0.0.0
 ENV PORT=7860
 
-# Start FastAPI server for OpenEnv/judging
-CMD ["python", "run_server.py"]
+# Start app with both FastAPI endpoints AND Gradio UI
+CMD ["python", "app_gradio.py"]
 

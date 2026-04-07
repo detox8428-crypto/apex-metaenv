@@ -239,8 +239,30 @@ with gr.Blocks(title="APEX Data Pipeline Engineer", theme=gr.themes.Soft()) as d
 
 
 if __name__ == "__main__":
-    demo.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        share=False
+    # Mount FastAPI app with Gradio UI running alongside it
+    # This allows both REST endpoints (/reset, /step, /state) AND Gradio UI to work on same port
+    from envs.code_solver_env.server.app import app as fastapi_app
+    import uvicorn
+    
+    # Mount Gradio demo to FastAPI app at /ui
+    app = gr.mount_gradio_app(fastapi_app, demo, path="/ui")
+    
+    # Run both FastAPI + Gradio on port 7860
+    print("\n" + "=" * 80)
+    print("APEX ENGINEERING BENCHMARK - FastAPI + Gradio Server")
+    print("=" * 80)
+    print("✅ FastAPI endpoints (for automated validator):")
+    print("   - POST /reset    → Start new episode")
+    print("   - POST /step     → Advance episode")
+    print("   - GET  /state    → Get current observation")
+    print()
+    print("✅ Gradio UI: http://0.0.0.0:7860/ui")
+    print("✅ API Docs: http://0.0.0.0:7860/docs")
+    print("=" * 80 + "\n")
+    
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=7860,
+        log_level="info"
     )
