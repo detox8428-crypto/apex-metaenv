@@ -4,7 +4,7 @@ emoji: 🤖
 colorFrom: purple
 colorTo: blue
 sdk: docker
-app_file: server/app.py
+app_file: app_gradio.py
 pinned: false
 ---
 
