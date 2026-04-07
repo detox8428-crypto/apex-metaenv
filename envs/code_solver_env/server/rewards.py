@@ -234,6 +234,51 @@ class PipelineRewardCalculator:
         if is_cascading_hard and all_cascading_fixed:
             cascading_bonus = PipelineRewardCalculator.DEBUG_CASCADING_BONUS
         
+    @staticmethod
+    def calculate_debug_reward(
+        tests_passed: int,
+        tests_total: int,
+        step_count: int,
+        previous_tests_passed: Optional[int] = None,
+        is_cascading_hard: bool = False,
+        all_cascading_fixed: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Calculate reward for DEBUG mode (agent fixes crashing/wrong code).
+        
+        Scoring:
+            - Base: tests_passed / tests_total
+            - Regression penalty: -0.15 if fewer tests than previous step
+            - Cascading bonus: +0.10 if all errors fixed (hard only)
+        
+        Args:
+            tests_passed: Tests passing after fix
+            tests_total: Total tests
+            step_count: Step number (1-indexed, max 5)
+            previous_tests_passed: Tests in previous step
+            is_cascading_hard: Is this a cascading error task?
+            all_cascading_fixed: Are all errors fixed?
+            
+        Returns:
+            {
+                "reward": float,
+                "breakdown": { ... },
+                "done": bool
+            }
+        """
+        # Base reward
+        base_reward = tests_passed / max(1, tests_total)
+        
+        # Regression penalty
+        regression_penalty = 0.0
+        if previous_tests_passed is not None and tests_passed < previous_tests_passed:
+            regression_penalty = -PipelineRewardCalculator.DEBUG_REGRESSION_PENALTY
+        
+        # Cascading bonus
+        cascading_bonus = 0.0
+        if is_cascading_hard and all_cascading_fixed:
+            cascading_bonus = PipelineRewardCalculator.DEBUG_CASCADING_BONUS
+        
         # Final reward
         final_reward = base_reward + regression_penalty + cascading_bonus
         final_reward = max(0.0, min(1.0, final_reward))
@@ -251,6 +296,183 @@ class PipelineRewardCalculator:
                 "tests_passed": tests_passed,
                 "tests_total": tests_total,
                 "step": step_count
+            }
+        }
+
+    # CODE REVIEW DOMAIN CONSTANTS
+    CODE_REVIEW_PROBLEM_IDENTIFIED_BONUS = 0.20
+    CODE_REVIEW_PRODUCTION_IMPACT_BONUS = 0.25
+    CODE_REVIEW_FIX_APPROACH_BONUS = 0.20
+    CODE_REVIEW_FIXED_CODE_BONUS = 0.35
+    
+    # Keywords for production impact evaluation
+    PRODUCTION_IMPACT_KEYWORDS = [
+        "scale", "production", "users", "timeout",
+        "memory", "concurrent", "latency", "crash", "data loss",
+        "oom", "oomed", "exhausted", "stampede", "cascade",
+        "overflow", "overflow", "distributed", "transaction"
+    ]
+
+    @staticmethod
+    def calculate_code_review_reward(
+        problem_identified: bool,
+        production_impact_text: str,
+        production_impact_correct: bool,
+        fix_approach_correct: bool,
+        fixed_code_tests_passed: int,
+        fixed_code_tests_total: int,
+        step_count: int
+    ) -> Dict[str, Any]:
+        """
+        Calculate reward for CODE_REVIEW domain task.
+        
+        Scoring (Production Code Review):
+            - 0.20: Problem identified correctly
+            - 0.25: Production impact mentioned (scale, users, performance, crashes)
+            - 0.20: Fix approach is correct
+            - 0.35: Fixed code passes all test cases
+        
+        Args:
+            problem_identified: Agent correctly identified the problem
+            production_impact_text: Agent's explanation of production impact
+            production_impact_correct: Explanation mentions scale/performance/data loss
+            fix_approach_correct: Fix approach is architecturally sound
+            fixed_code_tests_passed: Tests passing in fixed code
+            fixed_code_tests_total: Total tests for fixed code
+            step_count: Step number (1-indexed, max 3)
+            
+        Returns:
+            {
+                "reward": float,
+                "breakdown": { ... },
+                "done": bool
+            }
+        """
+        # Check for production impact keywords
+        impact_text_lower = (production_impact_text or "").lower()
+        has_impact_keyword = any(
+            keyword in impact_text_lower 
+            for keyword in PipelineRewardCalculator.PRODUCTION_IMPACT_KEYWORDS
+        )
+        production_impact_bonus = (
+            PipelineRewardCalculator.CODE_REVIEW_PRODUCTION_IMPACT_BONUS 
+            if (production_impact_correct or has_impact_keyword) else 0.0
+        )
+        
+        # Problem identification bonus
+        problem_bonus = (
+            PipelineRewardCalculator.CODE_REVIEW_PROBLEM_IDENTIFIED_BONUS 
+            if problem_identified else 0.0
+        )
+        
+        # Fix approach bonus
+        fix_approach_bonus = (
+            PipelineRewardCalculator.CODE_REVIEW_FIX_APPROACH_BONUS 
+            if fix_approach_correct else 0.0
+        )
+        
+        # Fixed code bonus: 0.35 if all pass, scaled if partial
+        if fixed_code_tests_passed == fixed_code_tests_total:
+            fixed_code_bonus = PipelineRewardCalculator.CODE_REVIEW_FIXED_CODE_BONUS
+        else:
+            fixed_code_bonus = (fixed_code_tests_passed / max(1, fixed_code_tests_total)) * \
+                              PipelineRewardCalculator.CODE_REVIEW_FIXED_CODE_BONUS
+        
+        # Total reward
+        final_reward = problem_bonus + production_impact_bonus + fix_approach_bonus + fixed_code_bonus
+        final_reward = max(0.0, min(1.0, final_reward))
+        
+        # Episode complete if all passing or max steps
+        done = (fixed_code_tests_passed == fixed_code_tests_total) or step_count >= 3
+        
+        return {
+            "reward": round(final_reward, 4),
+            "done": done,
+            "breakdown": {
+                "problem_identified_bonus": round(problem_bonus, 4),
+                "production_impact_bonus": round(production_impact_bonus, 4),
+                "fix_approach_bonus": round(fix_approach_bonus, 4),
+                "fixed_code_bonus": round(fixed_code_bonus, 4),
+                "problem_identified": problem_identified,
+                "production_impact_mentioned": production_impact_correct or has_impact_keyword,
+                "fix_approach_correct": fix_approach_correct,
+                "fixed_code_tests": f"{fixed_code_tests_passed}/{fixed_code_tests_total}",
+                "step": step_count
+            }
+        }
+
+    # INCIDENT DEBUG DOMAIN CONSTANTS
+    INCIDENT_REGRESSION_PENALTY = 0.15
+    INCIDENT_CASCADE_BONUS = 0.15
+    INCIDENT_MAX_STEPS = 3
+
+    @staticmethod
+    def calculate_incident_debug_reward(
+        steps_resolved: int,
+        total_steps: int,
+        current_step_correct: bool,
+        previous_step_passing: Optional[bool] = None,
+        is_hard_cascading: bool = False,
+        all_cascading_fixed: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Calculate reward for INCIDENT_DEBUG domain (multi-step SRE scenarios).
+        
+        Scoring (Progressive Revelation):
+            - Base: steps_resolved / total_steps
+            - Regression penalty: -0.15 if current step breaks previous step
+            - Cascade bonus: +0.15 if all steps in hard task fixed correctly
+        
+        Each step reveals next symptom only if current fix is correct.
+        
+        Args:
+            steps_resolved: Number of steps correctly fixed
+            total_steps: Total steps in incident (1, 2, or 3)
+            current_step_correct: Is current step's fix correct?
+            previous_step_passing: Was previous step's solution still working?
+            is_hard_cascading: Is this a hard cascading incident?
+            all_cascading_fixed: Are all steps in cascading incident fixed?
+            
+        Returns:
+            {
+                "reward": float,
+                "breakdown": { ... },
+                "done": bool
+            }
+        """
+        # Base reward: proportion of steps resolved
+        base_reward = steps_resolved / max(1, total_steps)
+        
+        # Regression penalty: -0.15 if fix breaks previous step
+        regression_penalty = 0.0
+        if previous_step_passing is False:
+            regression_penalty = -PipelineRewardCalculator.INCIDENT_REGRESSION_PENALTY
+        
+        # Cascade bonus: +0.15 if all steps fixed (hard cascading only)
+        cascade_bonus = 0.0
+        if is_hard_cascading and all_cascading_fixed:
+            cascade_bonus = PipelineRewardCalculator.INCIDENT_CASCADE_BONUS
+        
+        # Final reward
+        final_reward = base_reward + regression_penalty + cascade_bonus
+        final_reward = max(0.0, min(1.0, final_reward))
+        
+        # Episode complete if all steps resolved or max steps reached
+        done = (steps_resolved == total_steps) or (steps_resolved >= PipelineRewardCalculator.INCIDENT_MAX_STEPS)
+        
+        return {
+            "reward": round(final_reward, 4),
+            "done": done,
+            "breakdown": {
+                "base_reward": round(base_reward, 4),
+                "regression_penalty": round(regression_penalty, 4),
+                "cascade_bonus": round(cascade_bonus, 4),
+                "steps_resolved": steps_resolved,
+                "total_steps": total_steps,
+                "current_step_correct": current_step_correct,
+                "previous_step_passing": previous_step_passing if previous_step_passing is not None else "N/A",
+                "is_hard_cascading": is_hard_cascading,
+                "explanation": f"Step {steps_resolved}/{total_steps} resolved; {final_reward:.2f} reward"
             }
         }
 
