@@ -13,7 +13,7 @@ description: >
 type: rl-environment
 runtime: docker
 app: run_server.py
-port: 8000
+port: 7860
 tagline: "The multi-turn RL benchmark for real engineering tasks"
 benchmarks:
   - name: data_pipeline
