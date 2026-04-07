@@ -1,286 +1,270 @@
-"""Reward calculation and feedback system with rich RL signals"""
+"""Reward calculation for data pipeline RL environment - SOLVE/REVIEW/DEBUG modes"""
 
 from typing import Dict, Any, List, Optional
 import logging
-import re
 
 logger = logging.getLogger(__name__)
 
 
-class RewardCalculator:
+class PipelineRewardCalculator:
     """
-    Compute multi-faceted rewards for RL training with rich signals:
+    Calculate rewards for data pipeline RL environment with 3 task modes:
     
-    - Test pass rate (primary)
-    - Efficiency bonus (fast execution)
-    - Complexity penalty (detects O(n²) vs O(n))
-    - Code quality bonus (elegant, short solutions)
-    - Improvement bonus (learning from feedback)
-    - Detailed breakdown for agent learning
+    1. SOLVE mode: Write code from scratch
+       - base_reward = 0.4 * visible_score + 0.6 * hidden_score
+       - attempt_penalty = -0.02 * (step - 1)
+       - efficiency_bonus = +0.05 if solved in <= 2 steps
+    
+    2. REVIEW mode: Identify and fix bugs (max 3 steps)
+       - bug_location: +0.25 if within 3 lines
+       - bug_type: +0.20 if correct categorization
+       - explanation: +0.20 if mentions root cause
+       - fixed_code: +0.35 if passes all tests
+    
+    3. DEBUG mode: Fix crashing code (multi-step)
+       - reward = tests_passing / total_tests
+       - regression_penalty = -0.15 if worse than previous step
+       - cascading_bonus = +0.1 if all cascading errors fixed (hard only)
     """
 
-    EFFICIENCY_THRESHOLD_MS = 2000.0  # 2 seconds
-    EFFICIENCY_BONUS = 0.1
-    ATTEMPT_PENALTY_PER_STEP = 0.02
-    TIME_PATIENCE_FACTOR = 0.05
-    
-    # Code quality thresholds
-    CLEAN_CODE_THRESHOLD_LINES = 10
-    CLEAN_CODE_BONUS = 0.05  # Small bonus for elegance
-    
-    # Complexity detection (empirical)
-    QUADRATIC_TIME_THRESHOLD_MS = 3000.0  # Solutions >3s likely O(n²)
-    COMPLEXITY_PENALTY = 0.15
+    # SOLVE mode constants
+    SOLVE_VISIBLE_WEIGHT = 0.4
+    SOLVE_HIDDEN_WEIGHT = 0.6
+    SOLVE_ATTEMPT_PENALTY = 0.02
+    SOLVE_EFFICIENCY_BONUS = 0.05
+    SOLVE_EFFICIENCY_STEPS = 2
+
+    # REVIEW mode constants
+    REVIEW_BUG_LOCATION_BONUS = 0.25
+    REVIEW_BUG_TYPE_BONUS = 0.20
+    REVIEW_EXPLANATION_BONUS = 0.20
+    REVIEW_FIXED_CODE_BONUS = 0.35
+    REVIEW_LOCATION_TOLERANCE = 3  # Lines tolerance
+
+    # DEBUG mode constants
+    DEBUG_REGRESSION_PENALTY = 0.15
+    DEBUG_CASCADING_BONUS = 0.10
 
     @staticmethod
-    def detect_complexity_class(
-        time_ms_total: float,
-        code_lines: int,
-        passed_cases: int,
-        total_cases: int
-    ) -> tuple[str, float]:
-        """
-        Detect algorithmic complexity class and return penalty.
-        
-        Args:
-            time_ms_total: Total execution time in ms
-            code_lines: Lines of code
-            passed_cases: Tests passed
-            total_cases: Total tests
-            
-        Returns:
-            (complexity_class, penalty): e.g., ("O(n)", 0.0) or ("O(n²)", -0.15)
-        """
-        if passed_cases < total_cases:
-            return ("unknown", 0.0)  # Can't detect if not all tests pass
-        
-        if time_ms_total > RewardCalculator.QUADRATIC_TIME_THRESHOLD_MS:
-            return ("O(n²)", -RewardCalculator.COMPLEXITY_PENALTY)
-        elif time_ms_total < 100.0 and code_lines < 20:
-            return ("O(1) or O(log n)", 0.0)
-        elif time_ms_total < 500.0:
-            return ("O(n)", 0.0)
-        else:
-            return ("O(n log n)", 0.0)
-
-    @staticmethod
-    def calculate_code_quality_bonus(
-        code_lines: int,
-        passed_cases: int,
-        total_cases: int
-    ) -> tuple[float, str]:
-        """
-        Calculate bonus for clean, elegant code.
-        
-        Args:
-            code_lines: Number of lines in solution
-            passed_cases: Tests passed
-            total_cases: Total tests
-            
-        Returns:
-            (bonus, explanation): e.g., (0.05, "Clean, concise solution")
-        """
-        if passed_cases < total_cases:
-            return (0.0, "Not all tests passed")
-        
-        if code_lines <= RewardCalculator.CLEAN_CODE_THRESHOLD_LINES:
-            return (
-                RewardCalculator.CLEAN_CODE_BONUS,
-                f"Clean solution ({code_lines} lines) - very elegant"
-            )
-        elif code_lines <= 15:
-            return (0.02, f"Concise solution ({code_lines} lines)")
-        else:
-            return (0.0, "Solution works but could be more concise")
-
-    @staticmethod
-    def calculate_improvement_bonus(
-        current_passed: int,
-        total_cases: int,
-        previous_passed: Optional[int] = None,
-        step_count: int = 1
-    ) -> tuple[float, str]:
-        """
-        Reward agent for improving from previous attempt.
-        
-        Args:
-            current_passed: Tests passed in current attempt
-            total_cases: Total test cases
-            previous_passed: Tests passed in previous attempt
-            step_count: Current step number
-            
-        Returns:
-            (bonus, explanation)
-        """
-        if previous_passed is None or step_count <= 1:
-            return (0.0, "First attempt")
-        
-        improvement = current_passed - previous_passed
-        if improvement > 0:
-            bonus = 0.1 * min(improvement / total_cases, 0.1)  # Max 0.1 bonus
-            return (
-                bonus,
-                f"Improvement: {previous_passed}→{current_passed} tests passed (+{improvement})"
-            )
-        else:
-            return (0.0, "No improvement from previous attempt")
-
-    @staticmethod
-    def calculate(
-        passed_cases: int,
-        total_cases: int,
-        time_ms_total: float,
+    def calculate_solve_reward(
+        visible_passed: int,
+        visible_total: int,
+        hidden_passed: int,
+        hidden_total: int,
         step_count: int,
-        code_lines: int,
-        error_type: str = None,
-        error_message: str = None,
-        test_results: List[Dict[str, Any]] = None,
-        previous_passed: Optional[int] = None
+        task_difficulty: str = "easy"
     ) -> Dict[str, Any]:
         """
-        Calculate rich reward breakdown for RL training.
+        Calculate reward for SOLVE mode (agent writes code from scratch).
         
-        Components:
-        1. Test pass rate (primary signal)
-        2. Efficiency bonus (execution time < 2s)
-        3. Complexity penalty (O(n²) detection)
-        4. Code quality bonus (elegance, conciseness)
-        5. Improvement bonus (learning from feedback)
-        6. Attempt penalty (encourage solving quickly)
-        
+        Args:
+            visible_passed: Number of visible test cases passed
+            visible_total: Total visible test cases
+            hidden_passed: Number of hidden test cases passed
+            hidden_total: Total hidden test cases
+            step_count: Step number (1-indexed)
+            task_difficulty: Task difficulty (easy, medium, hard)
+            
         Returns:
             {
-                "reward": float,  # Final clipped [0, 1]
-                "reward_breakdown": {
-                    "test_pass_rate": float,
-                    "efficiency_bonus": float,
-                    "complexity_penalty": float,
-                    "code_quality_bonus": float,
-                    "improvement_bonus": float,
-                    "attempt_penalty": float,
-                    "explanation": str
-                },
-                ... (other fields)
+                "reward": float,  # Final reward [0.0, 1.0]
+                "breakdown": { ... },
+                "done": bool  # Episode complete (all tests passed or max steps)
             }
         """
-        # Primary: test pass rate
-        if total_cases == 0:
-            primary_reward = 0.0
-        else:
-            primary_reward = passed_cases / total_cases
-
-        # Efficiency bonus
-        efficiency_bonus = 0.0
-        if passed_cases == total_cases:
-            if time_ms_total < RewardCalculator.EFFICIENCY_THRESHOLD_MS:
-                efficiency_bonus = RewardCalculator.EFFICIENCY_BONUS
-            else:
-                excess_ms = time_ms_total - RewardCalculator.EFFICIENCY_THRESHOLD_MS
-                efficiency_bonus = -min(0.05, excess_ms / 1000 * RewardCalculator.TIME_PATIENCE_FACTOR)
-
-        # Complexity penalty (O(n²) detection)
-        complexity_class, complexity_penalty = RewardCalculator.detect_complexity_class(
-            time_ms_total, code_lines, passed_cases, total_cases
+        # Visible and hidden test scores
+        visible_score = visible_passed / visible_total if visible_total > 0 else 0.0
+        hidden_score = hidden_passed / hidden_total if hidden_total > 0 else 0.0
+        
+        # Base reward = weighted average
+        base_reward = (
+            PipelineRewardCalculator.SOLVE_VISIBLE_WEIGHT * visible_score +
+            PipelineRewardCalculator.SOLVE_HIDDEN_WEIGHT * hidden_score
         )
-
-        # Code quality bonus (elegance)
-        code_quality_bonus, code_quality_explanation = RewardCalculator.calculate_code_quality_bonus(
-            code_lines, passed_cases, total_cases
-        )
-
-        # Improvement bonus (learning signal)
-        improvement_bonus, improvement_explanation = RewardCalculator.calculate_improvement_bonus(
-            passed_cases, total_cases, previous_passed, step_count
-        )
-
+        
         # Attempt penalty (encourage solving in few steps)
-        attempt_penalty = -(step_count - 1) * RewardCalculator.ATTEMPT_PENALTY_PER_STEP
-
-        # Final reward
-        final_reward = (
-            primary_reward +
-            efficiency_bonus +
-            complexity_penalty +
-            code_quality_bonus +
-            improvement_bonus +
-            attempt_penalty
-        )
+        attempt_penalty = -(step_count - 1) * PipelineRewardCalculator.SOLVE_ATTEMPT_PENALTY
+        
+        # Efficiency bonus (solved in <= 2 steps)
+        efficiency_bonus = 0.0
+        if step_count <= PipelineRewardCalculator.SOLVE_EFFICIENCY_STEPS and \
+           hidden_passed == hidden_total and visible_passed == visible_total:
+            efficiency_bonus = PipelineRewardCalculator.SOLVE_EFFICIENCY_BONUS
+        
+        # Final reward (clipped to [0, 1])
+        final_reward = base_reward + attempt_penalty + efficiency_bonus
         final_reward = max(0.0, min(1.0, final_reward))
-
-        # Build explanation
-        explanations = []
-        if passed_cases == total_cases:
-            explanations.append(f"✓ All {total_cases} tests passed")
-        else:
-            explanations.append(f"✗ {passed_cases}/{total_cases} tests passed")
         
-        if efficiency_bonus > 0:
-            explanations.append(f"⚡ Fast execution ({time_ms_total:.0f}ms)")
-        elif efficiency_bonus < 0:
-            explanations.append(f"🐢 Slow execution ({time_ms_total:.0f}ms)")
+        # Episode complete if all tests pass
+        done = (hidden_passed == hidden_total and visible_passed == visible_total)
         
-        if complexity_penalty < 0:
-            explanations.append(f"⚠️ Complexity: {complexity_class} - try using hashtable/set instead of nested loop")
-        elif complexity_class in ("O(1) or O(log n)", "O(n)"):
-            explanations.append(f"✅ {complexity_class} solution")
-        
-        if code_quality_bonus > 0:
-            explanations.append(f"🎯 {code_quality_explanation}")
-        
-        if improvement_bonus > 0:
-            explanations.append(f"📈 {improvement_explanation}")
-
-        per_test_times = None
-        if test_results:
-            per_test_times = [r.get("time_ms", 0.0) for r in test_results]
-
         return {
             "reward": round(final_reward, 4),
-            "reward_breakdown": {
-                "test_pass_rate": round(primary_reward, 4),
-                "efficiency_bonus": round(efficiency_bonus, 4),
-                "complexity_penalty": round(complexity_penalty, 4),
-                "code_quality_bonus": round(code_quality_bonus, 4),
-                "improvement_bonus": round(improvement_bonus, 4),
+            "done": done,
+            "breakdown": {
+                "visible_score": round(visible_score, 4),
+                "hidden_score": round(hidden_score, 4),
+                "base_reward": round(base_reward, 4),
                 "attempt_penalty": round(attempt_penalty, 4),
-                "complexity_class": complexity_class,
-                "explanation": " | ".join(explanations)
-            },
-            # Legacy fields for compatibility
-            "passed_cases": passed_cases,
-            "total_cases": total_cases,
-            "primary_reward": round(primary_reward, 4),
-            "efficiency_bonus": round(efficiency_bonus, 4),
-            "attempt_penalty": round(attempt_penalty, 4),
-            "final_reward": round(final_reward, 4),
-            "per_test_results": test_results or [],
-            "error_type": error_type,
-            "error_message": error_message,
-            "time_ms_total": round(time_ms_total, 2),
-            "code_lines": code_lines,
-            "per_test_times": per_test_times
+                "efficiency_bonus": round(efficiency_bonus, 4),
+                "visible_passed": visible_passed,
+                "visible_total": visible_total,
+                "hidden_passed": hidden_passed,
+                "hidden_total": hidden_total,
+                "step": step_count,
+                "explanation": f"Step {step_count}: {hidden_passed}/{hidden_total} hidden, {visible_passed}/{visible_total} visible"
+            }
         }
 
     @staticmethod
-    def interpret_error_type(error_message: str = None, sandbox_error_type: str = None) -> str:
-        """Classify error into a category."""
-        if sandbox_error_type:
-            if sandbox_error_type.upper() == "TIMEOUT":
-                return "TIMEOUT"
-            elif sandbox_error_type.upper() == "SECURITY":
-                return "SECURITY"
-            elif sandbox_error_type.upper() in ("RUNTIME", "EXECUTION"):
-                return "RUNTIME"
+    def calculate_review_reward(
+        bug_location_correct: bool,
+        bug_location_agent: str,
+        bug_location_true: str,
+        bug_type_correct: bool,
+        explanation_has_keywords: bool,
+        fixed_code_all_passing: bool,
+        fixed_code_tests_passed: int,
+        fixed_code_tests_total: int,
+        step_count: int
+    ) -> Dict[str, Any]:
+        """
+        Calculate reward for REVIEW mode (agent identifies and fixes bugs).
+        
+        Scoring:
+            - Bug location: +0.25 if within 3 lines of true location
+            - Bug type: +0.20 if exact match
+            - Explanation: +0.20 if mentions root cause keywords
+            - Fixed code: +0.35 if passes all test cases
+        
+        Args:
+            bug_location_correct: Is bug location within 3 lines?
+            bug_location_agent: Agent's identified location
+            bug_location_true: True bug location
+            bug_type_correct: Does agent's bug_type match true type?
+            explanation_has_keywords: Does explanation contain keywords?
+            fixed_code_all_passing: Do all tests pass for fixed code?
+            fixed_code_tests_passed: Number of tests passed
+            fixed_code_tests_total: Total tests
+            step_count: Step number (1-indexed, max 3)
+            
+        Returns:
+            {
+                "reward": float,
+                "breakdown": { ... },
+                "done": bool
+            }
+        """
+        location_bonus = PipelineRewardCalculator.REVIEW_BUG_LOCATION_BONUS if bug_location_correct else 0.0
+        type_bonus = PipelineRewardCalculator.REVIEW_BUG_TYPE_BONUS if bug_type_correct else 0.0
+        explanation_bonus = PipelineRewardCalculator.REVIEW_EXPLANATION_BONUS if explanation_has_keywords else 0.0
+        
+        # Fixed code bonus: 0.35 if all pass, scaled if partial
+        if fixed_code_all_passing:
+            fixed_code_bonus = PipelineRewardCalculator.REVIEW_FIXED_CODE_BONUS
+        else:
+            fixed_code_bonus = (fixed_code_tests_passed / max(1, fixed_code_tests_total)) * \
+                              PipelineRewardCalculator.REVIEW_FIXED_CODE_BONUS
+        
+        # Total reward
+        final_reward = location_bonus + type_bonus + explanation_bonus + fixed_code_bonus
+        final_reward = max(0.0, min(1.0, final_reward))
+        
+        # Episode complete if all passing or max steps
+        done = fixed_code_all_passing or step_count >= 3
+        
+        return {
+            "reward": round(final_reward, 4),
+            "done": done,
+            "breakdown": {
+                "bug_location_bonus": round(location_bonus, 4),
+                "bug_type_bonus": round(type_bonus, 4),
+                "explanation_bonus": round(explanation_bonus, 4),
+                "fixed_code_bonus": round(fixed_code_bonus, 4),
+                "bug_location_correct": bug_location_correct,
+                "bug_type_correct": bug_type_correct,
+                "explanation_has_keywords": explanation_has_keywords,
+                "fixed_code_tests": f"{fixed_code_tests_passed}/{fixed_code_tests_total}",
+                "step": step_count
+            }
+        }
 
-        if error_message:
-            msg_lower = error_message.lower()
-            if "syntaxerror" in msg_lower:
-                return "SYNTAX"
-            elif "timeout" in msg_lower:
-                return "TIMEOUT"
-            elif "security" in msg_lower:
-                return "SECURITY"
-            else:
-                return "RUNTIME"
+    @staticmethod
+    def calculate_debug_reward(
+        tests_passed: int,
+        tests_total: int,
+        step_count: int,
+        previous_tests_passed: Optional[int] = None,
+        is_cascading_hard: bool = False,
+        all_cascading_fixed: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Calculate reward for DEBUG mode (agent fixes crashing/wrong code).
+        
+        Scoring:
+            - Base: tests_passed / tests_total
+            - Regression penalty: -0.15 if fewer tests than previous step
+            - Cascading bonus: +0.10 if all errors fixed (hard only)
+        
+        Args:
+            tests_passed: Tests passing after fix
+            tests_total: Total tests
+            step_count: Step number (1-indexed, max 5)
+            previous_tests_passed: Tests in previous step
+            is_cascading_hard: Is this a cascading error task?
+            all_cascading_fixed: Are all errors fixed?
+            
+        Returns:
+            {
+                "reward": float,
+                "breakdown": { ... },
+                "done": bool
+            }
+        """
+        # Base reward
+        base_reward = tests_passed / max(1, tests_total)
+        
+        # Regression penalty
+        regression_penalty = 0.0
+        if previous_tests_passed is not None and tests_passed < previous_tests_passed:
+            regression_penalty = -PipelineRewardCalculator.DEBUG_REGRESSION_PENALTY
+        
+        # Cascading bonus
+        cascading_bonus = 0.0
+        if is_cascading_hard and all_cascading_fixed:
+            cascading_bonus = PipelineRewardCalculator.DEBUG_CASCADING_BONUS
+        
+        # Final reward
+        final_reward = base_reward + regression_penalty + cascading_bonus
+        final_reward = max(0.0, min(1.0, final_reward))
+        
+        # Episode complete if all pass or max steps
+        done = (tests_passed == tests_total) or step_count >= 5
+        
+        return {
+            "reward": round(final_reward, 4),
+            "done": done,
+            "breakdown": {
+                "base_reward": round(base_reward, 4),
+                "regression_penalty": round(regression_penalty, 4),
+                "cascading_bonus": round(cascading_bonus, 4),
+                "tests_passed": tests_passed,
+                "tests_total": tests_total,
+                "step": step_count
+            }
+        }
 
-        return "WRONG_ANSWER"
+
+# Legacy compatibility
+class RewardCalculator:
+    """Backward compatibility wrapper - use PipelineRewardCalculator instead"""
+    
+    @staticmethod
+    def calculate(**kwargs) -> Dict[str, Any]:
+        """Deprecated - use PipelineRewardCalculator instead"""
+        logger.warning("RewardCalculator deprecated. Use PipelineRewardCalculator.")
+        return {
+            "reward": 0.0,
+            "passed_cases": 0,
+            "total_cases": 0
+        }

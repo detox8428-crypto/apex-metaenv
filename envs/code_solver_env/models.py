@@ -1,120 +1,135 @@
-"""Pydantic v2 models for APEX Code Solver Environment"""
+"""Pydantic v2 models for APEX Data Pipeline Engineer Environment"""
 
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
 from datetime import datetime
 
 
-class CodeAction(BaseModel):
-    """Action: agent submits Python code to solve problem"""
-    code: str = Field(..., description="Python solution code", examples=["def two_sum(nums, target):\n    return [0, 1]"])
+class PipelineAction(BaseModel):
+    """Action: agent submits code or review for data pipeline task"""
+    code: Optional[str] = Field(None, description="Python solution code (for solve/debug tasks)")
+    review: Optional[dict] = Field(None, description="Code review JSON (for review tasks)")
     session_id: Optional[str] = Field(None, description="Session ID for multi-session mode")
 
     class Config:
         json_schema_extra = {
             "example": {
-                "code": "def two_sum(nums, target):\n    for i in range(len(nums)):\n        for j in range(i+1, len(nums)):\n            if nums[i] + nums[j] == target:\n                return [i, j]\n    return []",
+                "code": "import pandas as pd\n\ndef aggregate_sales(df: pd.DataFrame) -> pd.DataFrame:\n    return df.groupby('customer_id')['amount'].sum().sort_values(ascending=False).to_frame('total_amount').reset_index()",
                 "session_id": "550e8400-e29b-41d4-a716-446655440000"
             }
         }
 
 
-class TestCaseResult(BaseModel):
-    """Result of a single test case"""
-    case_index: int = Field(..., description="Index of the test case (0-based)")
-    passed: bool = Field(..., description="Whether the test case passed")
-    error: Optional[str] = Field(None, description="Error message if test case failed")
-    time_ms: Optional[float] = Field(None, description="Execution time in milliseconds")
+
+class DataSample(BaseModel):
+    """Sample data for the pipeline task"""
+    format: str = Field(..., description="Data format: csv, json, log")
+    content: str = Field(..., description="Actual data content as string")
+    description: str = Field(..., description="Human-readable description of data")
 
     class Config:
         json_schema_extra = {
             "example": {
-                "case_index": 0,
-                "passed": True,
-                "error": None,
-                "time_ms": 1.2
+                "format": "csv",
+                "content": "customer_id,product,amount,date\nC001,laptop,1200.00,2024-01-15\nC001,mouse,25.00,2024-01-16",
+                "description": "Sales transactions from January 2024"
             }
         }
 
 
-class ProblemObservation(BaseModel):
-    """Observation: problem statement and test results"""
-    problem_id: str = Field(..., description="Unique problem ID")
-    title: str = Field(..., description="Problem title")
-    description: str = Field(..., description="Problem description")
+class ReviewSubmission(BaseModel):
+    """Agent's code review submission"""
+    bug_location: str = Field(..., description="Line number or code section with bug (e.g., 'line 8')")
+    bug_type: str = Field(
+        ...,
+        description="Type of bug: wrong_aggregation, wrong_merge, data_type_error, missing_null_handling, wrong_filter, off_by_one"
+    )
+    explanation: str = Field(..., description="Root cause explanation of the bug")
+    fixed_code: str = Field(..., description="Corrected version of the function")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "bug_location": "line 8",
+                "bug_type": "wrong_aggregation",
+                "explanation": "The groupby is using 'product' instead of 'customer_id', which groups by product type rather than customer. This causes incorrect aggregation of total spend per customer.",
+                "fixed_code": "def get_top_customers(df):\n    return df.groupby('customer_id')['amount'].sum().sort_values(ascending=False).head(5)"
+            }
+        }
+
+
+class PipelineObservation(BaseModel):
+    """Observation: task description and current state"""
+    task_id: str = Field(..., description="Unique task ID")
+    title: str = Field(..., description="Task title")
+    description: str = Field(..., description="Detailed task description")
+    task_type: Literal["solve", "review", "debug"] = Field(..., description="Task mode")
+    difficulty: Literal["easy", "medium", "hard"] = Field(..., description="Task difficulty")
     function_signature: str = Field(..., description="Required function signature")
-    examples: str = Field(..., description="Input/output examples")
-    constraints: str = Field(..., description="Problem constraints")
-    difficulty: Literal["easy", "medium", "hard"] = Field(..., description="Problem difficulty")
-    test_results: list[TestCaseResult] = Field(..., description="Detailed test case results")
+    data_sample: DataSample = Field(..., description="Sample data for the task")
+    current_code: Optional[str] = Field(None, description="Broken code (for review/debug tasks)")
+    error_message: Optional[str] = Field(None, description="Crash message (for debug tasks)")
+    visible_test_results: Optional[list] = Field(None, description="What passed/failed (visible only)")
+    feedback: Optional[str] = Field(None, description="Step feedback like 'Test 1 passed. Test 2 failed...'")
     passed_cases: int = Field(..., description="Number of passed test cases")
     total_cases: int = Field(..., description="Total number of test cases")
-    error_message: Optional[str] = Field(None, description="Syntax/runtime error if any")
     step_count: int = Field(..., description="Number of steps taken in this episode")
     max_steps: int = Field(..., description="Maximum steps allowed per episode")
 
     class Config:
         json_schema_extra = {
             "example": {
-                "problem_id": "p001_v42",
-                "title": "Two Sum",
-                "description": "Given an array of integers nums and an integer target...",
-                "function_signature": "def two_sum(nums, target):",
-                "examples": "Example 1:\\nInput: nums = [2, 7, 11, 15], target = 9\\nOutput: [0, 1]",
-                "constraints": "2 <= len(nums) <= 10^4",
+                "task_id": "easy-solve-001",
+                "title": "Sales CSV Aggregator",
+                "description": "Write a function that aggregates total spend per customer from sales CSV",
+                "task_type": "solve",
                 "difficulty": "easy",
-                "test_results": [{"case_index": 0, "passed": True, "error": None, "time_ms": 1.2}],
-                "passed_cases": 1,
+                "function_signature": "def aggregate_sales(df: pd.DataFrame) -> pd.DataFrame:",
+                "data_sample": {
+                    "format": "csv",
+                    "content": "customer_id,product,amount\nC001,laptop,1200\nC001,mouse,25",
+                    "description": "Sales transactions"
+                },
+                "passed_cases": 0,
                 "total_cases": 5,
-                "error_message": None,
-                "step_count": 1,
-                "max_steps": 10
+                "step_count": 0,
+                "max_steps": 5
             }
         }
+
 
 
 class StepResponse(BaseModel):
     """Response from step endpoint"""
     session_id: str = Field(..., description="Session ID for this interaction")
-    observation: ProblemObservation = Field(..., description="Current problem observation")
+    observation: PipelineObservation = Field(..., description="Current task observation")
     reward: float = Field(..., description="Reward value (0.0 to 1.0)")
-    terminated: bool = Field(..., description="Whether the episode is complete (solved or max steps)")
-    truncated: bool = Field(..., description="Whether the episode was truncated (max steps reached)")
-    info: dict = Field(..., description="Additional information (error details, efficiency bonus, etc.)")
+    done: bool = Field(..., description="Whether the episode is complete")
+    info: dict = Field(..., description="Additional information (error details, breakdown, etc.)")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "session_id": "550e8400-e29b-41d4-a716-446655440000",
                 "observation": {
-                    "problem_id": "p001_v42",
-                    "title": "Two Sum",
-                    "description": "Given an array...",
-                    "function_signature": "def two_sum(nums, target):",
-                    "examples": "Example 1...",
-                    "constraints": "2 <= len(nums) <= 10^4",
+                    "task_id": "easy-solve-001",
+                    "title": "Sales CSV Aggregator",
+                    "description": "Aggregate total spend per customer",
+                    "task_type": "solve",
                     "difficulty": "easy",
-                    "test_results": [{"case_index": 0, "passed": True, "error": None, "time_ms": 1.2}],
-                    "passed_cases": 1,
+                    "function_signature": "def aggregate_sales(df: pd.DataFrame) -> pd.DataFrame:",
+                    "data_sample": {"format": "csv", "content": "...", "description": "..."},
+                    "passed_cases": 3,
                     "total_cases": 5,
-                    "error_message": None,
                     "step_count": 1,
-                    "max_steps": 10
+                    "max_steps": 5
                 },
-                "reward": 0.2,
-                "terminated": False,
-                "truncated": False,
+                "reward": 0.6,
+                "done": False,
                 "info": {
-                    "passed_cases": 1,
+                    "passed_cases": 3,
                     "total_cases": 5,
-                    "primary_reward": 0.2,
-                    "efficiency_bonus": 0.0,
-                    "attempt_penalty": -0.02,
-                    "final_reward": 0.18,
-                    "error_type": None,
-                    "error_message": None,
-                    "time_ms_total": 1.2,
-                    "code_lines": 8
+                    "success": False
                 }
             }
         }
@@ -123,26 +138,24 @@ class StepResponse(BaseModel):
 class ResetResponse(BaseModel):
     """Response from reset endpoint"""
     session_id: str = Field(..., description="New session ID for this episode")
-    observation: ProblemObservation = Field(..., description="Initial problem observation")
+    observation: PipelineObservation = Field(..., description="Initial task observation")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "session_id": "550e8400-e29b-41d4-a716-446655440000",
                 "observation": {
-                    "problem_id": "p001_v42",
-                    "title": "Two Sum",
-                    "description": "Given an array...",
-                    "function_signature": "def two_sum(nums, target):",
-                    "examples": "Example 1...",
-                    "constraints": "2 <= len(nums) <= 10^4",
+                    "task_id": "easy-solve-001",
+                    "title": "Sales CSV Aggregator",
+                    "description": "Aggregate total spend per customer",
+                    "task_type": "solve",
                     "difficulty": "easy",
-                    "test_results": [],
+                    "function_signature": "def aggregate_sales(df: pd.DataFrame) -> pd.DataFrame:",
+                    "data_sample": {"format": "csv", "content": "...", "description": "..."},
                     "passed_cases": 0,
                     "total_cases": 5,
-                    "error_message": None,
                     "step_count": 0,
-                    "max_steps": 10
+                    "max_steps": 5
                 }
             }
         }
@@ -151,27 +164,27 @@ class ResetResponse(BaseModel):
 class EnvState(BaseModel):
     """Internal session state"""
     session_id: str = Field(..., description="Unique session identifier")
-    problem_id: str = Field(..., description="Current problem ID")
+    task_id: str = Field(..., description="Current task ID")
+    task_type: Literal["solve", "review", "debug"] = Field(..., description="Task mode")
     step_count: int = Field(..., description="Number of steps taken")
     max_steps: int = Field(..., description="Maximum steps per episode")
     best_reward: float = Field(..., description="Best reward achieved in this episode")
     episode_history: list[float] = Field(..., description="Reward per step in this episode")
     created_at: datetime = Field(..., description="When session was created")
     last_activity: datetime = Field(..., description="When session was last accessed")
-    problem_source: Literal["canonical", "procedural"] = Field(..., description="Source of problem")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "session_id": "550e8400-e29b-41d4-a716-446655440000",
-                "problem_id": "p001_v42",
+                "task_id": "easy-solve-001",
+                "task_type": "solve",
                 "step_count": 3,
-                "max_steps": 10,
-                "best_reward": 0.6,
-                "episode_history": [0.2, 0.4, 0.6],
+                "max_steps": 5,
+                "best_reward": 0.8,
+                "episode_history": [0.4, 0.6, 0.8],
                 "created_at": "2024-04-03T12:00:00Z",
-                "last_activity": "2024-04-03T12:00:05Z",
-                "problem_source": "procedural"
+                "last_activity": "2024-04-03T12:00:05Z"
             }
         }
 
@@ -179,7 +192,7 @@ class EnvState(BaseModel):
 class SessionInfo(BaseModel):
     """Information about an active session"""
     session_id: str
-    problem_id: str
+    task_id: str
     step_count: int
     age_seconds: int
     best_reward: float
@@ -203,204 +216,33 @@ class ManifestResponse(BaseModel):
     transport: list[str] = Field(..., description="Supported transports (http, websocket)")
     endpoints: dict = Field(..., description="Available endpoints")
     reward: dict = Field(..., description="Reward specification")
-    problems: dict = Field(..., description="Problem availability")
+    tasks: dict = Field(..., description="Task availability")
     capabilities: list[str] = Field(..., description="Environment capabilities")
 
     class Config:
         json_schema_extra = {
             "example": {
-                "name": "code_solver",
-                "version": "2.0.0",
+                "name": "apex_data_pipeline",
+                "version": "1.0.0",
                 "spec": "openenv/v1",
-                "description": "RL environment for solving coding problems",
+                "description": "RL environment for data pipeline engineering tasks",
                 "action_schema": {"type": "object", "properties": {"code": {"type": "string"}}},
-                "observation_schema": {"type": "object", "properties": {"problem_id": {"type": "string"}}},
+                "observation_schema": {"type": "object", "properties": {"task_id": {"type": "string"}}},
                 "transport": ["http", "websocket"],
                 "endpoints": {
                     "reset": "POST /reset",
                     "step": "POST /step",
-                    "state": "GET /state",
-                    "websocket": "ws://{host}/ws/{session_id}"
+                    "state": "GET /state"
                 },
                 "reward": {"min": 0.0, "max": 1.0, "type": "continuous"},
-                "problems": {
-                    "canonical": 9,
-                    "procedural": "infinite",
+                "tasks": {
+                    "solve": 3,
+                    "review": 3,
+                    "debug": 3,
                     "difficulties": ["easy", "medium", "hard"]
                 },
-                "capabilities": ["multi_session", "procedural_generation", "sandboxed_execution", "websocket"]
+                "capabilities": ["multi_session", "sandboxed_execution"]
             }
         }
 
 
-class ProblemDetail(BaseModel):
-    """Full problem details (sans test cases)"""
-    problem_id: str
-    title: str
-    description: str
-    function_signature: str
-    examples: str
-    constraints: str
-    difficulty: Literal["easy", "medium", "hard"]
-    total_cases: int
-    source: Literal["canonical", "procedural"]
-
-
-class ProblemsListResponse(BaseModel):
-    """Response with available problems"""
-    total: int
-    canonical: int
-    procedural: str  # "infinite"
-    problems: list[ProblemDetail]
-
-
-class LeaderboardEntry(BaseModel):
-    """Single leaderboard entry"""
-    rank: int
-    problem_id: str
-    problem_title: str
-    reward: float
-    session_id: str
-    timestamp: datetime
-
-
-class LeaderboardResponse(BaseModel):
-    """Leaderboard response"""
-    problem_id: Optional[str] = None
-    entries: list[LeaderboardEntry]
-    count: int
-
-
-# ============================================================================
-# SOLVER-SPECIFIC MODELS (for external API compatibility)
-# ============================================================================
-
-class CodeSolverAction(BaseModel):
-    """Action for CodeSolver environment - agent submits Python code"""
-    code: str = Field(..., description="Python solution code to execute")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "code": "def two_sum(nums, target):\n    for i in range(len(nums)):\n        for j in range(i+1, len(nums)):\n            if nums[i] + nums[j] == target:\n                return [i, j]\n    return []"
-            }
-        }
-
-
-class CodeSolverObservation(BaseModel):
-    """Observation for CodeSolver environment - problem statement and results"""
-    problem_id: str = Field(..., description="Unique problem identifier")
-    title: str = Field(..., description="Problem title")
-    description: str = Field(..., description="Problem description")
-    function_signature: str = Field(..., description="Required function signature")
-    examples: str = Field(..., description="Input/output examples")
-    constraints: str = Field(..., description="Problem constraints")
-    difficulty: Literal["easy", "medium", "hard"] = Field(..., description="Problem difficulty level")
-    test_results: list[TestCaseResult] = Field(default_factory=list, description="Results from executed test cases")
-    passed_cases: int = Field(..., description="Number of test cases that passed")
-    total_cases: int = Field(..., description="Total number of test cases")
-    error_message: Optional[str] = Field(None, description="Error message if execution failed")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "problem_id": "p001",
-                "title": "Two Sum",
-                "description": "Given an array of integers...",
-                "function_signature": "def two_sum(nums, target):",
-                "examples": "Example 1: Input: [2,7,11,15], target=9 → Output: [0,1]",
-                "constraints": "2 <= len(nums) <= 10^4",
-                "difficulty": "easy",
-                "test_results": [{"case_index": 0, "passed": True, "error": None, "time_ms": 1.2}],
-                "passed_cases": 1,
-                "total_cases": 5,
-                "error_message": None
-            }
-        }
-
-
-class CodeSolverState(BaseModel):
-    """State for CodeSolver environment - current session state"""
-    problem_id: str = Field(..., description="Current problem identifier")
-    difficulty: Literal["easy", "medium", "hard"] = Field(..., description="Current problem difficulty")
-    attempts: int = Field(..., description="Number of attempts made on current problem")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "problem_id": "p001",
-                "difficulty": "easy",
-                "attempts": 2
-            }
-        }
-
-
-# ============================================================================
-# EVALUATION MODELS (for benchmarking agents)
-# ============================================================================
-
-class EvaluateRequest(BaseModel):
-    """Request for evaluating agent solutions"""
-    agent_solutions: dict[str, str] = Field(
-        ...,
-        description="Dict mapping problem_id to solution code. E.g., {'p001': 'def two_sum...'}"
-    )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "agent_solutions": {
-                    "p001": "def two_sum(nums, target):\n    seen = set()\n    for num in nums:\n        if target - num in seen:\n            return [nums.index(target-num), nums.index(num)]\n        seen.add(num)\n    return []",
-                    "p002": "def is_palindrome(s):\n    clean = ''.join(c.lower() for c in s if c.isalnum())\n    return clean == clean[::-1]"
-                }
-            }
-        }
-
-
-class ProblemScore(BaseModel):
-    """Score for a single problem"""
-    problem_id: str = Field(..., description="Problem ID")
-    title: str = Field(..., description="Problem title")
-    difficulty: Literal["easy", "medium", "hard"] = Field(..., description="Problem difficulty")
-    passed_cases: int = Field(..., description="Number of test cases passed")
-    total_cases: int = Field(..., description="Total test cases")
-    reward: float = Field(..., description="Final reward (0.0-1.0)")
-    explanation: str = Field(..., description="Explanation of score")
-
-
-class EvaluationReport(BaseModel):
-    """Comprehensive evaluation report for an agent"""
-    total_score: float = Field(..., description="Overall score (0.0-1.0)")
-    by_difficulty: dict[Literal["easy", "medium", "hard"], float] = Field(
-        ..., description="Average score by difficulty"
-    )
-    by_problem: dict[str, ProblemScore] = Field(
-        ..., description="Detailed score for each problem"
-    )
-    rank: Literal["beginner", "intermediate", "advanced", "expert"] = Field(
-        ..., description="Performance tier"
-    )
-    feedback: str = Field(..., description="Detailed feedback on agent performance")
-    timestamp: str = Field(..., description="Evaluation timestamp")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "total_score": 0.78,
-                "by_difficulty": {"easy": 0.95, "medium": 0.78, "hard": 0.60},
-                "by_problem": {
-                    "p001": {
-                        "problem_id": "p001",
-                        "title": "Two Sum",
-                        "difficulty": "easy",
-                        "passed_cases": 5,
-                        "total_cases": 5,
-                        "reward": 1.0,
-                        "explanation": "Perfect solution using hashmap O(n)"
-                    }
-                },
-                "rank": "intermediate",
-                "feedback": "Strong on easy problems, struggles with DP on hard problems. Recommended: practice recursive solutions and dynamic programming patterns.",
-                "timestamp": "2024-04-06T20:45:00Z"
-            }
-        }

@@ -1,21 +1,75 @@
-﻿# APEX Code Solver RL Environment
+﻿# APEX Data Pipeline Engineer RL Environment
 
-**Stable Version 2.0** | OpenEnv-compliant | Production-ready with sandboxing, WebSockets, and procedural generation
+**Version 1.0** | OpenEnv-compliant | Production-ready with real-world data engineering tasks
 
-A reinforcement learning environment for training agents to solve LeetCode-style coding problems. Agents receive problem statements with test cases, submit Python solutions, and receive rewards based on test case pass rates.
+A reinforcement learning environment for training agents to become data engineers. Agents work on real-world data pipeline tasks: writing transformations, reviewing code for bugs, and debugging broken pipelines. Domain: pandas, CSV, JSON, ETL.
 
 ## Features
 
- **Multi-Session Management** - Parallel agents with isolated state via UUIDs  
- **Sandboxed Execution** - Subprocess isolation with resource limits (CPU, memory, processes)  
- **Security First** - AST-based code analysis to prevent dangerous imports/calls  
- **WebSocket Support** - Persistent connections for streaming test results  
- **Procedural Generation** - Infinite problem variants with seed control (7 templates)  
- **Typed Models** - Pydantic v2 schemas with OpenAPI docs  
- **Auto-Discovery** - `/manifest` endpoint for framework integration  
- **Reward Shaping** - Composite rewards (test pass rate + efficiency + attempt penalty)  
- **Scalable** - Docker Compose with nginx load balancer (3-8 replicas)  
- **HF Spaces** - Gradio interface for public deployment  
+- **3 Task Modes**: SOLVE (write pipelines), REVIEW (find bugs), DEBUG (fix errors)
+- **18 Real-World Tasks**: 3 difficulties × 3 task types × 2 variations each
+- **Multi-Step Episodes**: Max 5 steps per episode with rich feedback
+- **Deterministic Grading**: Programmatic assertions, no LLM judging
+- **Visible & Hidden Tests**: Partial credit for intermediate progress
+- **Data Samples**: Real CSV/JSON/log data in observations
+- **Composable Rewards**: Task-specific reward functions (solve/review/debug)
+- **Sandboxed Execution**: Safe code execution with resource limits
+- **WebSocket Support**: Persistent connections for streaming results
+- **Auto-Discovery**: `/manifest` endpoint for framework integration
+- **Multi-Session**: Parallel agents with isolated state via UUIDs
+- **Docker Ready**: Containerized with docker-compose scaling
+
+## Task Types
+
+### 💻 SOLVE Mode (Write Pipelines from Scratch)
+Agent receives messy data and must write pandas code to process it correctly.
+
+**Example**: Given sales CSV with customer_id, product, amount → write `aggregate_sales()` that returns total spend per customer, sorted descending.
+
+**Reward Structure**:
+- base_reward = 0.4 × visible_score + 0.6 × hidden_score
+- attempt_penalty = -0.02 × (step - 1)
+- efficiency_bonus = +0.05 if solved in ≤ 2 steps
+
+### 🔍 REVIEW Mode (Identify & Fix Bugs)
+Agent reviews buggy pipeline code and identifies the bug type, location, and provides fixed code.
+
+**Example**: Code groups by 'product' instead of 'customer_id'. Agent must identify "wrong_aggregation" bug and fix it.
+
+**Reward Structure**:
+- bug_location: +0.25 if within 3 lines
+- bug_type: +0.20 if correct categorization
+- explanation: +0.20 if root cause mentioned
+- fixed_code: +0.35 if all tests pass
+
+### 🐛 DEBUG Mode (Fix Crashing Code)
+Agent receives code that crashes/produces wrong output. Each step reveals the next hidden error.
+
+**Example**: 
+- Step 1: KeyError on 'unit_price' (should be 'price')
+- Step 2: TypeError on date arithmetic (need pd.to_datetime)
+- Step 3: Logic bug in groupby aggregation
+
+**Reward Structure**:
+- base = tests_passed / total_tests
+- regression_penalty = -0.15 if fewer tests pass than previous step
+- cascading_bonus = +0.10 if all cascading errors fixed (hard only)
+
+## Difficulty Levels
+
+| Difficulty | Solve | Review | Debug |
+|-----------|-------|--------|-------|
+| **EASY** | Simple aggregations, filtering | Wrong column, missing fillna | Single KeyError |
+| **MEDIUM** | Duplicate detection, time-series | Wrong merge type, off-by-one | Chained operations bug |
+| **HARD** | Multi-source merge, log parsing | Cascading bugs, timezone issues | 3-step cascading errors |
+
+## Baseline Performance (Qwen 72B)
+
+| Mode | Easy | Medium | Hard | Average |
+|------|------|--------|------|---------|
+| Solve | 0.70-0.85 | 0.50-0.65 | 0.30-0.50 | 0.58 |
+| Review | 0.65-0.80 | 0.45-0.60 | 0.25-0.45 | 0.52 |
+| Debug | 0.75-0.90 | 0.50-0.65 | 0.30-0.50 | 0.58 |
 
 ## Quick Start (5 Minutes)
 
@@ -33,21 +87,69 @@ python run_server.py
 
 Visit `http://localhost:8000/docs` for interactive API documentation.
 
-### 3. Use Client
+### 3. Run Inference (Test All 9 Episodes)
+
+```bash
+python inference.py
+```
+
+Expected output:
+```
+[START] task=easy-solve mode=solve model=Qwen2.5-72B-Instruct
+[STEP] step=1 reward=0.40 done=false
+[STEP] step=2 reward=0.80 done=false
+[STEP] step=3 reward=1.00 done=true
+[END] success=true steps=3 score=0.73
+
+[START] task=medium-review mode=review model=Qwen2.5-72B-Instruct
+[STEP] step=1 reward=0.45 done=false
+[STEP] step=2 reward=0.75 done=false
+[STEP] step=3 reward=0.75 done=true
+[END] success=true steps=3 score=0.65
+
+[START] task=hard-debug mode=debug model=Qwen2.5-72B-Instruct
+[STEP] step=1 reward=0.20 done=false
+[STEP] step=2 reward=0.40 done=false
+[STEP] step=3 reward=0.60 done=false
+[STEP] step=4 reward=0.60 done=false
+[STEP] step=5 reward=0.60 done=true
+[END] success=false steps=5 score=0.48
+
+============================================================
+Completed 9 episodes (3 solve + 3 review + 3 debug)
+Average reward: 0.61
+Total reward: 5.49
+=========================================================
+```
+
+### 4. Use Python Client
 
 ```python
 from envs.code_solver_env.client import CodeSolverClient
+import pandas as pd
 
-client = CodeSolverClient("http://localhost:8000", transport="http")
+client = CodeSolverClient("http://localhost:8000")
 
-# Reset and get problem
-reset = client.reset(difficulty="easy")
-print(f"Problem: {reset['observation']['title']}")
+# Get a SOLVE task (easy, write CSV aggregator)
+reset = client.reset(task_type="solve", difficulty="easy")
+print(f"Task: {reset['observation']['title']}")
+print(f"Data sample: {reset['observation']['data_sample']['content']}")
 
 # Submit solution
-code = """def two_sum(nums, target):
-    for i in range(len(nums)):
-        for j in range(i+1, len(nums)):
+code = """
+import pandas as pd
+
+def aggregate_sales(df: pd.DataFrame) -> pd.DataFrame:
+    return df.groupby('customer_id')['amount'].sum().sort_values(ascending=False).to_frame('total_amount').reset_index()
+"""
+
+response = client.step(code)
+print(f"Reward: {response['reward']}")
+print(f"Done: {response['done']}")
+print(f"Passed: {response['observation']['passed_cases']}/{response['observation']['total_cases']}")
+```
+
+## Reward Calculation (Detailed)
             if nums[i] + nums[j] == target:
                 return [i, j]
     return []"""

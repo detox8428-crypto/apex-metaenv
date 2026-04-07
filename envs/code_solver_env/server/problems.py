@@ -1,767 +1,668 @@
-"""Coding problems for Code Solver Environment with procedural generation"""
+"""Real-world data pipeline tasks for APEX Data Pipeline Engineer Environment"""
 
+import json
 import random
-import string
+import pandas as pd
 from typing import Dict, Any, List, Tuple
 
-
 # ============================================================================
-# CANONICAL PROBLEMS (9 hand-curated)
+# TASK TYPE 1: PIPELINE WRITER (solve mode) - Agent writes code from scratch
 # ============================================================================
 
-CANONICAL_PROBLEMS = [
-    # ==================== EASY ====================
+SOLVE_TASKS = [
+    # ==================== EASY SOLVE ====================
     {
-        "problem_id": "p001",
-        "title": "Two Sum",
+        "task_id": "easy-solve-001",
+        "title": "Sales CSV Aggregator",
         "difficulty": "easy",
-        "description": "Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target. You may assume each input has exactly one solution. You may not use the same element twice.",
-        "function_signature": "def two_sum(nums, target):",
-        "examples": "Example 1:\nInput: nums = [2, 7, 11, 15], target = 9\nOutput: [0, 1]\nExplanation: nums[0] + nums[1] = 2 + 7 = 9\n\nExample 2:\nInput: nums = [3, 2, 4], target = 6\nOutput: [1, 2]\nExplanation: nums[1] + nums[2] = 2 + 4 = 6",
-        "constraints": "2 <= len(nums) <= 10^4, -10^9 <= nums[i] <= 10^9, -10^9 <= target <= 10^9",
+        "task_type": "solve",
+        "description": "Write a function that returns total spend per customer from sales CSV, sorted descending by amount. You have columns: customer_id, product, amount, date",
+        "function_signature": "def aggregate_sales(df: pd.DataFrame) -> pd.DataFrame:\n    # Returns DataFrame with columns: customer_id, total_amount\n    # Sorted by total_amount descending",
+        "data_sample": {
+            "format": "csv",
+            "content": "customer_id,product,amount,date\nC001,laptop,1200.00,2024-01-15\nC001,mouse,25.00,2024-01-16\nC002,keyboard,75.00,2024-01-15\nC003,laptop,1200.00,2024-01-17\nC002,laptop,1200.00,2024-01-18",
+            "description": "Sales transactions from January 2024"
+        },
         "test_cases": [
-            {"input": {"nums": [2, 7, 11, 15], "target": 9}, "expected": [0, 1]},
-            {"input": {"nums": [3, 2, 4], "target": 6}, "expected": [1, 2]},
-            {"input": {"nums": [3, 3], "target": 6}, "expected": [0, 1]},
-            {"input": {"nums": [1, 2, 3, 4, 5], "target": 9}, "expected": [3, 4]},
-            {"input": {"nums": [-1, -2, -3, 5, 10], "target": 7}, "expected": [3, 4]},
+            {"csv": "customer_id,product,amount\nC001,laptop,1200\nC001,mouse,25\nC002,keyboard,75\nC003,laptop,1200\nC002,laptop,1200", "assertions": [
+                "len(result) == 3",
+                "list(result.columns) == ['customer_id', 'total_amount']",
+                "result.iloc[0]['customer_id'] == 'C002'",
+                "result.iloc[0]['total_amount'] == 2475.0",
+                "result.iloc[1]['total_amount'] == 1225.0"
+            ]}
         ],
-        "solution_template": "def two_sum(nums, target):\n    # Your solution here\n    pass",
-        "source": "canonical"
+        "visible_test_count": 2,
+        "hidden_test_count": 3
     },
     {
-        "problem_id": "p002",
-        "title": "Palindrome Check",
+        "task_id": "easy-solve-002",
+        "title": "JSON Customer Flattener",
         "difficulty": "easy",
-        "description": "Given a string s, determine if it is a palindrome, considering only alphanumeric characters and ignoring cases. Return True if it is, False otherwise.",
-        "function_signature": "def is_palindrome(s):",
-        "examples": "Example 1:\nInput: s = \"A man, a plan, a canal: Panama\"\nOutput: True\n\nExample 2:\nInput: s = \"race a car\"\nOutput: False",
-        "constraints": "1 <= len(s) <= 2*10^5, s consists of ASCII characters",
+        "task_type": "solve",
+        "description": "Flatten nested JSON customer records into DataFrame. Input has customers array with nested address objects. Output should have columns: id, name, city, zip",
+        "function_signature": "def flatten_customers(data: dict) -> pd.DataFrame:\n    # Flatten nested JSON into DataFrame",
+        "data_sample": {
+            "format": "json",
+            "content": '{\"customers\": [{\"id\": \"C001\", \"name\": \"Alice\", \"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}}, {\"id\": \"C002\", \"name\": \"Bob\", \"address\": {\"city\": \"LA\", \"zip\": \"90001\"}}]}',
+            "description": "Customer records with nested address"
+        },
         "test_cases": [
-            {"input": {"s": "A man, a plan, a canal: Panama"}, "expected": True},
-            {"input": {"s": "race a car"}, "expected": False},
-            {"input": {"s": "0P"}, "expected": False},
-            {"input": {"s": "a"}, "expected": True},
-            {"input": {"s": "aba"}, "expected": True},
+            {"json": '{\"customers\": [{\"id\": \"C001\", \"name\": \"Alice\", \"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}}]}', "assertions": [
+                "len(result) == 1",
+                "list(result.columns) == ['id', 'name', 'city', 'zip']",
+                "result.iloc[0]['city'] == 'NYC'"
+            ]}
         ],
-        "solution_template": "def is_palindrome(s):\n    # Your solution here\n    pass",
-        "source": "canonical"
+        "visible_test_count": 2,
+        "hidden_test_count": 3
     },
     {
-        "problem_id": "p003",
-        "title": "FizzBuzz",
+        "task_id": "easy-solve-003",
+        "title": "Date Format Standardizer",
         "difficulty": "easy",
-        "description": "Given an integer n, return a list of strings representing numbers from 1 to n. For multiples of 3, return 'Fizz', for multiples of 5 return 'Buzz', for multiples of both return 'FizzBuzz'.",
-        "function_signature": "def fizz_buzz(n):",
-        "examples": "Example 1:\nInput: n = 3\nOutput: [\"1\", \"2\", \"Fizz\"]\n\nExample 2:\nInput: n = 5\nOutput: [\"1\", \"2\", \"Fizz\", \"4\", \"Buzz\"]",
-        "constraints": "1 <= n <= 10^4",
+        "task_type": "solve",
+        "description": "Convert mixed date formats in a CSV to YYYY-MM-DD format. Handle both MM/DD/YYYY and DD-MM-YYYY formats.",
+        "function_signature": "def standardize_dates(df: pd.DataFrame) -> pd.DataFrame:\n    # Convert all dates to YYYY-MM-DD format",
+        "data_sample": {
+            "format": "csv",
+            "content": "order_id,date\nO001,01/15/2024\nO002,15-01-2024\nO003,02/20/2024",
+            "description": "Orders with mixed date formats"
+        },
         "test_cases": [
-            {"input": {"n": 3}, "expected": ["1", "2", "Fizz"]},
-            {"input": {"n": 5}, "expected": ["1", "2", "Fizz", "4", "Buzz"]},
-            {"input": {"n": 15}, "expected": ["1", "2", "Fizz", "4", "Buzz", "Fizz", "7", "8", "Fizz", "Buzz", "11", "Fizz", "13", "14", "FizzBuzz"]},
-            {"input": {"n": 1}, "expected": ["1"]},
-            {"input": {"n": 6}, "expected": ["1", "2", "Fizz", "4", "Buzz", "Fizz"]},
+            {"csv": "order_id,date\nO001,01/15/2024\nO002,15-01-2024", "assertions": [
+                "result.iloc[0]['date'] == '2024-01-15'",
+                "result.iloc[1]['date'] == '2024-01-15'"
+            ]}
         ],
-        "solution_template": "def fizz_buzz(n):\n    # Your solution here\n    pass",
-        "source": "canonical"
+        "visible_test_count": 2,
+        "hidden_test_count": 3
     },
-    # ==================== MEDIUM ====================
+    # ==================== MEDIUM SOLVE ====================
     {
-        "problem_id": "p004",
-        "title": "Longest Substring Without Repeating Characters",
+        "task_id": "medium-solve-001",
+        "title": "Duplicate Transaction Detector",
         "difficulty": "medium",
-        "description": "Given a string s, find the length of the longest substring without repeating characters.",
-        "function_signature": "def length_of_longest_substring(s):",
-        "examples": "Example 1:\nInput: s = \"abcabcbb\"\nOutput: 3\nExplanation: \"abc\" has length 3\n\nExample 2:\nInput: s = \"bbbbb\"\nOutput: 1\nExplanation: \"b\" has length 1",
-        "constraints": "0 <= len(s) <= 5*10^4, s consists of ASCII characters",
+        "task_type": "solve",
+        "description": "Detect duplicate transactions: same account + amount + merchant within 60 seconds. Add is_duplicate boolean column.",
+        "function_signature": "def detect_duplicates(df: pd.DataFrame) -> pd.DataFrame:\n    # Add is_duplicate column (bool) - flags duplicates within 60s window",
+        "data_sample": {
+            "format": "csv",
+            "content": "tx_id,account,amount,timestamp,merchant\nT001,ACC123,50.00,2024-01-15 10:30:00,Amazon\nT002,ACC123,50.00,2024-01-15 10:30:05,Amazon\nT003,ACC456,200.00,2024-01-15 11:00:00,Walmart\nT004,ACC123,75.00,2024-01-15 12:00:00,Amazon",
+            "description": "Bank transactions with potential duplicates"
+        },
         "test_cases": [
-            {"input": {"s": "abcabcbb"}, "expected": 3},
-            {"input": {"s": "bbbbb"}, "expected": 1},
-            {"input": {"s": "pwwkew"}, "expected": 3},
-            {"input": {"s": ""}, "expected": 0},
-            {"input": {"s": "au"}, "expected": 2},
+            {"csv": "tx_id,account,amount,timestamp,merchant\nT001,ACC123,50,2024-01-15 10:30:00,Amazon\nT002,ACC123,50,2024-01-15 10:30:05,Amazon", "assertions": [
+                "result.iloc[1]['is_duplicate'] == True",
+                "result.iloc[0]['is_duplicate'] == False"
+            ]}
         ],
-        "solution_template": "def length_of_longest_substring(s):\n    # Your solution here\n    pass",
-        "source": "canonical"
+        "visible_test_count": 1,
+        "hidden_test_count": 4
     },
     {
-        "problem_id": "p005",
-        "title": "Valid Parentheses",
+        "task_id": "medium-solve-002",
+        "title": "Time Series Resampler",
         "difficulty": "medium",
-        "description": "Given a string s containing '(', ')', '{', '}', '[', ']', determine if it is valid. A valid string has properly matched and ordered brackets.",
-        "function_signature": "def is_valid(s):",
-        "examples": "Example 1:\nInput: s = \"()\"\nOutput: True\n\nExample 2:\nInput: s = \"()[]{}\"\nOutput: True\n\nExample 3:\nInput: s = \"(]\"\nOutput: False",
-        "constraints": "1 <= len(s) <= 10^4, s contains only brackets",
+        "task_type": "solve",
+        "description": "Resample sensor readings to 1-hour intervals, forward-fill missing values, compute rolling 3-hour average.",
+        "function_signature": "def resample_timeseries(df: pd.DataFrame) -> pd.DataFrame:\n    # Resample to 1-hour intervals, forward-fill, compute 3-hour rolling mean",
+        "data_sample": {
+            "format": "csv",
+            "content": "timestamp,sensor_value\n2024-01-15 10:00:00,20.5\n2024-01-15 10:15:00,21.3\n2024-01-15 10:45:00,19.8",
+            "description": "Irregular sensor readings"
+        },
         "test_cases": [
-            {"input": {"s": "()"}, "expected": True},
-            {"input": {"s": "()[]{}"}, "expected": True},
-            {"input": {"s": "(]"}, "expected": False},
-            {"input": {"s": "([)]"}, "expected": False},
-            {"input": {"s": "{[]}"}, "expected": True},
+            {"csv": "timestamp,sensor_value\n2024-01-15 10:00:00,20.5\n2024-01-15 10:30:00,21.0", "assertions": [
+                "len(result) >= 2",
+                "'rolling_mean' in result.columns"
+            ]}
         ],
-        "solution_template": "def is_valid(s):\n    # Your solution here\n    pass",
-        "source": "canonical"
+        "visible_test_count": 1,
+        "hidden_test_count": 4
     },
     {
-        "problem_id": "p006",
-        "title": "Maximum Subarray",
+        "task_id": "medium-solve-003",
+        "title": "Data Quality Validator",
         "difficulty": "medium",
-        "description": "Given an integer array nums, find the contiguous subarray with the largest sum and return that sum. Use Kadane's algorithm.",
-        "function_signature": "def max_sub_array(nums):",
-        "examples": "Example 1:\nInput: nums = [-2, 1, -3, 4, -1, 2, 1, -5, 4]\nOutput: 6\nExplanation: [4, -1, 2, 1] has maximum sum 6\n\nExample 2:\nInput: nums = [5, 4, -1, 7, 8]\nOutput: 23",
-        "constraints": "1 <= len(nums) <= 10^5, -10^4 <= nums[i] <= 10^4",
+        "task_type": "solve",
+        "description": "Check data quality: detect missing values, outliers (>3 std), and invalid email formats. Return quality report.",
+        "function_signature": "def validate_data_quality(df: pd.DataFrame) -> dict:\n    # Returns dict with missing_count, outlier_count, invalid_emails, quality_score",
+        "data_sample": {
+            "format": "csv",
+            "content": "user_id,email,age\nU001,alice@example.com,25\nU002,bob@invalid,28\nU003,,30\nU004,charlie@example.com,150",
+            "description": "Customer data with quality issues"
+        },
         "test_cases": [
-            {"input": {"nums": [-2, 1, -3, 4, -1, 2, 1, -5, 4]}, "expected": 6},
-            {"input": {"nums": [5, 4, -1, 7, 8]}, "expected": 23},
-            {"input": {"nums": [-1]}, "expected": -1},
-            {"input": {"nums": [1, 2, 3, 4, 5]}, "expected": 15},
-            {"input": {"nums": [-2, -1, -3]}, "expected": -1},
+            {"csv": "user_id,email,age\nU001,alice@example.com,25\nU002,bob@invalid,28\nU003,,30", "assertions": [
+                "result['missing_count'] == 1",
+                "result['invalid_emails'] == 1"
+            ]}
         ],
-        "solution_template": "def max_sub_array(nums):\n    # Your solution here (Kadane's algorithm)\n    pass",
-        "source": "canonical"
+        "visible_test_count": 1,
+        "hidden_test_count": 4
     },
-    # ==================== HARD ====================
+    # ==================== HARD SOLVE ====================
     {
-        "problem_id": "p007",
-        "title": "Merge K Sorted Lists",
+        "task_id": "hard-solve-001",
+        "title": "Multi-source Data Merger",
         "difficulty": "hard",
-        "description": "Given k sorted lists (represented as lists of integers), merge them into one sorted list.",
-        "function_signature": "def merge_k_lists(lists):",
-        "examples": "Example 1:\nInput: lists = [[1, 4, 5], [1, 3, 4], [2, 6]]\nOutput: [1, 1, 2, 3, 4, 4, 5, 6]\n\nExample 2:\nInput: lists = []\nOutput: []",
-        "constraints": "k == len(lists), 0 <= k <= 10^4, each list is sorted in ascending order",
+        "task_type": "solve",
+        "description": "Merge 3 CSV files (sales, returns, inventory) with inconsistent column names and date formats. Standardize names and compute net_revenue per product.",
+        "function_signature": "def merge_pipeline(sales_df: pd.DataFrame, returns_df: pd.DataFrame, inventory_df: pd.DataFrame) -> pd.DataFrame:\n    # Merge all 3 sources, standardize columns, compute net_revenue",
+        "data_sample": {
+            "format": "csv",
+            "content": "SALES: product_id,amount\\nP001,1000\\nP002,500\\nRETURNS: prod_id,return_amount\\nP001,100\\nINVENTORY: item_id,stock_qty\\nP001,50\\nP002,30",
+            "description": "Three sources with different column naming"
+        },
         "test_cases": [
-            {"input": {"lists": [[1, 4, 5], [1, 3, 4], [2, 6]]}, "expected": [1, 1, 2, 3, 4, 4, 5, 6]},
-            {"input": {"lists": []}, "expected": []},
-            {"input": {"lists": [[]]}, "expected": []},
-            {"input": {"lists": [[1], [2], [3]]}, "expected": [1, 2, 3]},
-            {"input": {"lists": [[1, 2, 3], [4, 5, 6]]}, "expected": [1, 2, 3, 4, 5, 6]},
+            {"files": {"sales": "product_id,amount\nP001,1000", "returns": "prod_id,return_amount\nP001,100", "inventory": "item_id,stock_qty\nP001,50"}, "assertions": [
+                "len(result) == 1",
+                "result.iloc[0]['net_revenue'] == 900"
+            ]}
         ],
-        "solution_template": "def merge_k_lists(lists):\n    # Your solution here\n    pass",
-        "source": "canonical"
-    },
-    {
-        "problem_id": "p008",
-        "title": "Trapping Rain Water",
-        "difficulty": "hard",
-        "description": "Given n non-negative integers representing elevation map where width of bar is 1, compute how much water it can trap after raining.",
-        "function_signature": "def trap_water(height):",
-        "examples": "Example 1:\nInput: height = [0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1]\nOutput: 6\n\nExample 2:\nInput: height = [4, 2, 0, 3, 2, 5]\nOutput: 9",
-        "constraints": "n == len(height), 0 <= height[i] <= 10^4",
-        "test_cases": [
-            {"input": {"height": [0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1]}, "expected": 6},
-            {"input": {"height": [4, 2, 0, 3, 2, 5]}, "expected": 9},
-            {"input": {"height": [2, 0, 2]}, "expected": 2},
-            {"input": {"height": []}, "expected": 0},
-            {"input": {"height": [3]}, "expected": 0},
-        ],
-        "solution_template": "def trap_water(height):\n    # Your solution here\n    pass",
-        "source": "canonical"
+        "visible_test_count": 0,
+        "hidden_test_count": 5
     },
     {
-        "problem_id": "p009",
-        "title": "Word Break",
+        "task_id": "hard-solve-002",
+        "title": "Log Parser and Anomaly Detector",
         "difficulty": "hard",
-        "description": "Given a string s and a list of words word_dict, return True if s can be segmented into words from the dictionary. Words can be reused.",
-        "function_signature": "def word_break(s, word_dict):",
-        "examples": "Example 1:\nInput: s = \"leetcode\", word_dict = [\"leet\", \"code\"]\nOutput: True\n\nExample 2:\nInput: s = \"applepenapple\", word_dict = [\"apple\", \"pen\"]\nOutput: True",
-        "constraints": "1 <= len(s) <= 300, 1 <= len(word_dict) <= 1000, words may repeat",
+        "task_type": "solve",
+        "description": "Parse Apache-format server logs into DataFrame. Detect IPs with >5 failed (4xx/5xx) requests in any 10-minute window.",
+        "function_signature": "def parse_and_detect_anomalies(logs: str) -> Dict[str, Any]:\n    # Parse logs, return anomalous_ips list and detailed DataFrame",
+        "data_sample": {
+            "format": "log",
+            "content": '192.168.1.1 - - [15/Jan/2024:10:30:00] \"GET /api/users HTTP/1.1\" 200 1234\n192.168.1.2 - - [15/Jan/2024:10:30:01] \"POST /api/login HTTP/1.1\" 401 89\n192.168.1.1 - - [15/Jan/2024:10:30:02] \"GET /api/admin HTTP/1.1\" 403 45',
+            "description": "Apache-format server access logs"
+        },
         "test_cases": [
-            {"input": {"s": "leetcode", "word_dict": ["leet", "code"]}, "expected": True},
-            {"input": {"s": "applepenapple", "word_dict": ["apple", "pen"]}, "expected": True},
-            {"input": {"s": "catsandog", "word_dict": ["cat", "cats", "and", "sand", "dog"]}, "expected": False},
-            {"input": {"s": "a", "word_dict": ["a"]}, "expected": True},
-            {"input": {"s": "ab", "word_dict": ["a"]}, "expected": False},
+            {"logs": '192.168.1.1 - - [15/Jan/2024:10:30:00] \"GET / HTTP/1.1\" 404 100\n192.168.1.1 - - [15/Jan/2024:10:30:05] \"GET / HTTP/1.1\" 404 100\n192.168.1.1 - - [15/Jan/2024:10:30:10] \"GET / HTTP/1.1\" 404 100\n192.168.1.1 - - [15/Jan/2024:10:30:15] \"GET / HTTP/1.1\" 404 100\n192.168.1.1 - - [15/Jan/2024:10:30:20] \"GET / HTTP/1.1\" 404 100\n192.168.1.1 - - [15/Jan/2024:10:30:25] \"GET / HTTP/1.1\" 404 100', "assertions": [
+                "'192.168.1.1' in result.get('anomalous_ips', [])"
+            ]}
         ],
-        "solution_template": "def word_break(s, word_dict):\n    # Your solution here (dynamic programming recommended)\n    pass",
-        "source": "canonical"
+        "visible_test_count": 0,
+        "hidden_test_count": 5
+    },
+    {
+        "task_id": "hard-solve-003",
+        "title": "ETL Pipeline with Schema Validation",
+        "difficulty": "hard",
+        "task_type": "solve",
+        "description": "Build ETL: extract CSV, transform (clean nulls, dedupe, validate types), load to parquet. Handle schema evolution gracefully.",
+        "function_signature": "def etl_pipeline(input_csv: str, schema: dict) -> Tuple[pd.DataFrame, dict]:\n    # Returns (cleaned_df, quality_report)",
+        "data_sample": {
+            "format": "csv",
+            "content": "order_id,customer_id,amount,date\nO001,C001,100.50,2024-01-15\nO001,C001,100.50,2024-01-15\nO002,C002,,2024-01-16\nO003,invalid,150.00,2024-13-40",
+            "description": "Raw order data with quality issues"
+        },
+        "test_cases": [
+            {"csv": "order_id,customer_id,amount\nO001,C001,100.50\nO001,C001,100.50", "assertions": [
+                "len(result[0]) == 1"
+            ]}
+        ],
+        "visible_test_count": 0,
+        "hidden_test_count": 5
     }
 ]
 
-# Keep reference for backward compatibility
-PROBLEMS = CANONICAL_PROBLEMS
-
-
 # ============================================================================
-# BUGGY PROBLEMS (for Code Review mode)
+# TASK TYPE 2: PIPELINE REVIEWER (review mode) - Agent identifies bugs
 # ============================================================================
 
-BUGGY_PROBLEMS = [
-    # ==================== EASY ====================
+REVIEW_TASKS = [
+    # ==================== EASY REVIEW ====================
     {
-        "problem_id": "bug_001",
-        "title": "Fix Off-By-One in Loop",
+        "task_id": "easy-review-001",
+        "title": "Wrong GroupBy Column",
         "difficulty": "easy",
-        "description": "Find and return the maximum value in a list of integers.",
-        "buggy_code": """def find_max(nums):
-    max_val = nums[0]
-    for i in range(len(nums) - 1):  # BUG: should be range(len(nums))
-        if nums[i] > max_val:
-            max_val = nums[i]
-    return max_val""",
-        "bug_description": "Off-by-one error: loop should iterate through all elements, not stop one short",
-        "function_signature": "def find_max(nums):",
-        "examples": "Example:\nInput: nums = [3, 1, 4, 1, 5, 9, 2, 6]\nOutput: 9",
-        "constraints": "1 <= len(nums) <= 10^4, -10^9 <= nums[i] <= 10^9",
+        "task_type": "review",
+        "description": "Review a buggy aggregation function. The bug is in the groupby column selection.",
+        "function_signature": "def get_top_customers(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "customer_id,product,amount\nC001,laptop,1200\nC001,mouse,25\nC002,keyboard,75",
+            "description": "Sales data"
+        },
+        "current_code": "def get_top_customers(df):\n    return df.groupby('product')['amount'].sum().sort_values(ascending=False).head(5)",
+        "bug_type": "wrong_aggregation",
+        "bug_location": "line 2",
+        "explanation": "The code groups by 'product' instead of 'customer_id', causing incorrect aggregation. It should group by customer_id to get total spend per customer.",
         "test_cases": [
-            {"input": {"nums": [3, 1, 4, 1, 5, 9, 2, 6]}, "expected": 9},
-            {"input": {"nums": [1]}, "expected": 1},
-            {"input": {"nums": [-5, -2, -8, -1]}, "expected": -1},
-            {"input": {"nums": [100, 50, 75, 25]}, "expected": 100},
-            {"input": {"nums": [5, 5, 5, 5, 5]}, "expected": 5},
-        ],
-        "source": "buggy"
+            {"csv": "customer_id,product,amount\nC001,laptop,1200\nC001,mouse,25", "assertions": [
+                "len(result) == 2",
+                "list(result.index)[0] == 'C001'"
+            ]}
+        ]
     },
     {
-        "problem_id": "bug_002",
-        "title": "Fix Modulo Check for Even Numbers",
+        "task_id": "easy-review-002",
+        "title": "Missing fillna Before Calculation",
         "difficulty": "easy",
-        "description": "Return True if a number is even, False otherwise.",
-        "buggy_code": """def is_even(n):
-    return n % 2 == 1  # BUG: should be == 0""",
-        "bug_description": "Wrong operator: checking if odd (== 1) instead of even (== 0)",
-        "function_signature": "def is_even(n):",
-        "examples": "Example:\nInput: n = 4\nOutput: True\n\nInput: n = 3\nOutput: False",
-        "constraints": "-10^9 <= n <= 10^9",
+        "task_type": "review",
+        "description": "Review code that calculates average without handling NaN values properly.",
+        "function_signature": "def calculate_avg_order(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "order_id,amount\nO001,100\nO002,\nO003,150",
+            "description": "Orders with some missing amounts"
+        },
+        "current_code": "def calculate_avg_order(df):\n    return df['amount'].mean()",
+        "bug_type": "missing_null_handling",
+        "bug_location": "line 2",
+        "explanation": "The code uses mean() which skips NaN, but the result is misleading. Should explicitly fill NaN with 0 or handle them explicitly based on business logic.",
         "test_cases": [
-            {"input": {"n": 4}, "expected": True},
-            {"input": {"n": 3}, "expected": False},
-            {"input": {"n": 0}, "expected": True},
-            {"input": {"n": -2}, "expected": True},
-            {"input": {"n": -5}, "expected": False},
-        ],
-        "source": "buggy"
+            {"csv": "order_id,amount\nO001,100\nO002,\nO003,150", "assertions": [
+                "isinstance(result, float)"
+            ]}
+        ]
     },
-    # ==================== MEDIUM ====================
     {
-        "problem_id": "bug_003",
-        "title": "Fix Missing Base Case in Recursion",
+        "task_id": "easy-review-003",
+        "title": "Wrong Filter Condition",
+        "difficulty": "easy",
+        "task_type": "review",
+        "description": "Review filtering logic that uses wrong comparison.",
+        "function_signature": "def get_high_value_orders(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "order_id,amount\nO001,100\nO002,1000\nO003,500",
+            "description": "Orders with different amounts"
+        },
+        "current_code": "def get_high_value_orders(df):\n    return df[df['amount'] < 500]",
+        "bug_type": "wrong_filter",
+        "bug_location": "line 2",
+        "explanation": "Filter uses < instead of >=. Should return orders with amount >= 500 (high-value), not less than 500.",
+        "test_cases": [
+            {"csv": "order_id,amount\nO001,100\nO002,1000", "assertions": [
+                "len(result) == 1",
+                "result.iloc[0]['amount'] == 1000"
+            ]}
+        ]
+    },
+    # ==================== MEDIUM REVIEW ====================
+    {
+        "task_id": "medium-review-001",
+        "title": "Wrong Merge Type (inner vs left)",
         "difficulty": "medium",
-        "description": "Calculate the factorial of a non-negative integer n. Return n! = n * (n-1) * ... * 1.",
-        "buggy_code": """def factorial(n):
-    # BUG: missing if n == 0: return 1
-    return n * factorial(n - 1)""",
-        "bug_description": "Missing base case: infinite recursion without returning 1 when n equals 0",
-        "function_signature": "def factorial(n):",
-        "examples": "Example:\nInput: n = 5\nOutput: 120\nExplanation: 5 * 4 * 3 * 2 * 1 = 120",
-        "constraints": "0 <= n <= 20",
+        "task_type": "review",
+        "description": "Review a merge that loses data by using wrong join type.",
+        "function_signature": "def merge_sales_returns(sales_df, returns_df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "SALES: order_id,amount\\nO001,100\\nO002,200\\nRETURNS: order_id,return_amount\\nO001,10",
+            "description": "Sales and returns with different row counts"
+        },
+        "current_code": "def merge_sales_returns(sales_df, returns_df):\n    merged = sales_df.merge(returns_df, on='order_id', how='inner')\n    merged['net'] = merged['amount'] - merged['return_amount'].fillna(0)\n    return merged",
+        "bug_type": "wrong_merge",
+        "bug_location": "line 2",
+        "explanation": "Using inner join drops sales with no returns (O002). Should use left join to keep all sales records. Returns without matches should have NaN in return_amount.",
         "test_cases": [
-            {"input": {"n": 5}, "expected": 120},
-            {"input": {"n": 0}, "expected": 1},
-            {"input": {"n": 1}, "expected": 1},
-            {"input": {"n": 10}, "expected": 3628800},
-            {"input": {"n": 3}, "expected": 6},
-        ],
-        "source": "buggy"
+            {"files": {"sales": "order_id,amount\nO001,100\nO002,200", "returns": "order_id,return_amount\nO001,10"}, "assertions": [
+                "len(result) == 2",
+                "result.iloc[1]['net'] == 200"
+            ]}
+        ]
     },
     {
-        "problem_id": "bug_004",
-        "title": "Fix Binary Search Index Update",
+        "task_id": "medium-review-002",
+        "title": "Off-by-One in Filtering",
         "difficulty": "medium",
-        "description": "Search for a target value in a sorted array using binary search. Return the index if found, else return -1.",
-        "buggy_code": """def binary_search(nums, target):
-    left, right = 0, len(nums) - 1
-    while left <= right:
-        mid = (left + right) // 2
-        if nums[mid] == target:
-            return mid
-        elif nums[mid] < target:
-            left = mid  # BUG: should be mid + 1
-        else:
-            right = mid - 1
-    return -1""",
-        "bug_description": "Wrong update: left should be set to mid + 1, not mid, to avoid infinite loop",
-        "function_signature": "def binary_search(nums, target):",
-        "examples": "Example:\nInput: nums = [1, 3, 5, 7, 9], target = 7\nOutput: 3",
-        "constraints": "1 <= len(nums) <= 10^4, -10^9 <= nums[i] <= 10^9, -10^9 <= target <= 10^9",
+        "task_type": "review",
+        "description": "Review filtering that excludes the boundary case.",
+        "function_signature": "def get_recent_records(df, days):",
+        "data_sample": {
+            "format": "csv",
+            "content": "record_id,date,value\nR001,2024-01-15,100\nR002,2024-01-14,200",
+            "description": "Records with dates"
+        },
+        "current_code": "def get_recent_records(df, days):\n    cutoff = pd.Timestamp.now() - pd.Timedelta(days=days)\n    return df[df['date'] > cutoff]",
+        "bug_type": "off_by_one",
+        "bug_location": "line 3",
+        "explanation": "Uses > instead of >=. This excludes records exactly 'days' old. Should use >= to include the boundary.",
         "test_cases": [
-            {"input": {"nums": [1, 3, 5, 7, 9], "target": 7}, "expected": 3},
-            {"input": {"nums": [1, 3, 5, 7, 9], "target": 1}, "expected": 0},
-            {"input": {"nums": [1, 3, 5, 7, 9], "target": 9}, "expected": 4},
-            {"input": {"nums": [1, 3, 5, 7, 9], "target": 4}, "expected": -1},
-            {"input": {"nums": [2, 4, 6, 8, 10], "target": 6}, "expected": 2},
-        ],
-        "source": "buggy"
-    },
-    # ==================== HARD ====================
-    {
-        "problem_id": "bug_005",
-        "title": "Fix Merge Sorted Arrays Logic",
-        "difficulty": "hard",
-        "description": "Merge two sorted arrays into one sorted array in ascending order.",
-        "buggy_code": """def merge_sorted(a, b):
-    result = []
-    i = j = 0
-    while i < len(a) and j < len(b):
-        if a[i] < b[j]:  # BUG: should be <=
-            result.append(b[j])  # BUG: should be a[i]
-            i += 1
-        else:
-            result.append(a[i])  # BUG: should be b[j]
-            j += 1
-    result.extend(a[i:])
-    result.extend(b[j:])
-    return result""",
-        "bug_description": "Multiple bugs: wrong comparison operator and swapped append values",
-        "function_signature": "def merge_sorted(a, b):",
-        "examples": "Example:\nInput: a = [1, 3, 5], b = [2, 4, 6]\nOutput: [1, 2, 3, 4, 5, 6]",
-        "constraints": "0 <= len(a), len(b) <= 10^4",
-        "test_cases": [
-            {"input": {"a": [1, 3, 5], "b": [2, 4, 6]}, "expected": [1, 2, 3, 4, 5, 6]},
-            {"input": {"a": [1, 2, 3], "b": [4, 5, 6]}, "expected": [1, 2, 3, 4, 5, 6]},
-            {"input": {"a": [1], "b": [1]}, "expected": [1, 1]},
-            {"input": {"a": [], "b": [1, 2, 3]}, "expected": [1, 2, 3]},
-            {"input": {"a": [1, 3, 5, 7], "b": [2, 4, 6, 8]}, "expected": [1, 2, 3, 4, 5, 6, 7, 8]},
-        ],
-        "source": "buggy"
+            {"csv": "record_id,date\nR001,2024-01-15\nR002,2024-01-14", "assertions": [
+                "len(result) >= 2"
+            ]}
+        ]
     },
     {
-        "problem_id": "bug_006",
-        "title": "Fix DP Transition in Coin Change",
-        "difficulty": "hard",
-        "description": "Find the minimum number of coins needed to make a given amount. Return -1 if impossible.",
-        "buggy_code": """def coin_change(coins, amount):
-    dp = [float('inf')] * (amount + 1)
-    dp[0] = 0
-    for i in range(1, amount + 1):
-        for coin in coins:
-            if coin <= i:
-                dp[i] = min(dp[i], dp[i - coin])  # BUG: should be dp[i-coin] + 1
-    return dp[amount] if dp[amount] != float('inf') else -1""",
-        "bug_description": "Missing +1: DP transition should add 1 coin to the count from subproblem",
-        "function_signature": "def coin_change(coins, amount):",
-        "examples": "Example:\nInput: coins = [1, 5, 10], amount = 11\nOutput: 2\nExplanation: 10 + 1 = 11 (2 coins)",
-        "constraints": "1 <= len(coins) <= 12, 1 <= coins[i] <= 2^31 - 1, 0 <= amount <= 10^4",
+        "task_id": "medium-review-003",
+        "title": "Type Mismatch in Comparison",
+        "difficulty": "medium",
+        "task_type": "review",
+        "description": "Review code comparing string and numeric types.",
+        "function_signature": "def filter_by_amount(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "order_id,amount\nO001,100\nO002,200.5",
+            "description": "Orders with amounts"
+        },
+        "current_code": "def filter_by_amount(df):\n    return df[df['amount'] > '150']",
+        "bug_type": "data_type_error",
+        "bug_location": "line 2",
+        "explanation": "Comparing numeric column to string '150'. Should be numeric 150. This causes wrong comparison behavior (string comparison vs numeric).",
         "test_cases": [
-            {"input": {"coins": [1, 5, 10], "amount": 11}, "expected": 2},
-            {"input": {"coins": [2], "amount": 3}, "expected": -1},
-            {"input": {"coins": [10], "amount": 10}, "expected": 1},
-            {"input": {"coins": [1, 2, 5], "amount": 5}, "expected": 1},
-            {"input": {"coins": [1, 3, 4], "amount": 6}, "expected": 2},
-        ],
-        "source": "buggy"
+            {"csv": "order_id,amount\nO001,100\nO002,200", "assertions": [
+                "len(result) == 1"
+            ]}
+        ]
+    },
+    # ==================== HARD REVIEW ====================
+    {
+        "task_id": "hard-review-001",
+        "title": "Silent Data Loss in Chained Operations",
+        "difficulty": "hard",
+        "task_type": "review",
+        "description": "Review code that silently loses rows due to inplace parameter misunderstanding.",
+        "function_signature": "def clean_pipeline(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "id,value,status\n1,100,active\n2,,inactive\n3,300,active",
+            "description": "Data with nulls and status"
+        },
+        "current_code": "def clean_pipeline(df):\n    df.dropna(inplace=True)\n    df[df['value'] > 100].reset_index(inplace=True)\n    return df",
+        "bug_type": "wrong_aggregation",
+        "bug_location": "line 3",
+        "explanation": "The reset_index with inplace=True modifies df, but the filter on line 2 is not assigned back to df. Should assign: df = df[df['value'] > 100].reset_index(drop=True)",
+        "test_cases": [
+            {"csv": "id,value\n1,100\n2,200\n3,300", "assertions": [
+                "len(result) == 2"
+            ]}
+        ]
+    },
+    {
+        "task_id": "hard-review-002",
+        "title": "Timezone-Naive vs Timezone-Aware Comparison",
+        "difficulty": "hard",
+        "task_type": "review",
+        "description": "Review code comparing timezone-aware and timezone-naive timestamps.",
+        "function_signature": "def filter_by_timestamp(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "id,timestamp\n1,2024-01-15 10:00:00+00:00\n2,2024-01-15 11:00:00",
+            "description": "Mixed timezone data"
+        },
+        "current_code": "def filter_by_timestamp(df):\n    cutoff = pd.Timestamp('2024-01-15 10:30:00')\n    return df[df['timestamp'] > cutoff]",
+        "bug_type": "data_type_error",
+        "bug_location": "line 2-3",
+        "explanation": "Mixing timezone-aware (with +00:00) and timezone-naive timestamps causes comparison errors. Should make both same: either both aware or both naive.",
+        "test_cases": [
+            {"csv": "id,timestamp\n1,2024-01-15 10:00:00", "assertions": [
+                "isinstance(result, pd.DataFrame)"
+            ]}
+        ]
+    },
+    {
+        "task_id": "hard-review-003",
+        "title": "Cascading Groupby-Reset Bug",
+        "difficulty": "hard",
+        "task_type": "review",
+        "description": "Review complex aggregation with forgotten reset_index.",
+        "function_signature": "def aggregate_with_ranking(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "category,item_id,value\nA,I1,100\nA,I2,200\nB,I3,150",
+            "description": "Hierarchical data"
+        },
+        "current_code": "def aggregate_with_ranking(df):\n    grouped = df.groupby('category')['value'].sum().sort_values(ascending=False)\n    grouped['rank'] = range(1, len(grouped) + 1)\n    return grouped",
+        "bug_type": "wrong_aggregation",
+        "bug_location": "line 3",
+        "explanation": "After groupby().sum(), 'grouped' is a Series, not a DataFrame. Cannot add 'rank' column directly. Need .reset_index() first to convert to DataFrame.",
+        "test_cases": [
+            {"csv": "category,value\nA,100\nA,200\nB,150", "assertions": [
+                "isinstance(result, pd.DataFrame)",
+                "result.iloc[0]['value'] == 300"
+            ]}
+        ]
     }
 ]
 
+# ============================================================================
+# TASK TYPE 3: PIPELINE DEBUGGER (debug mode) - Agent fixes crashing code
+# ============================================================================
+
+DEBUG_TASKS = [
+    # ==================== EASY DEBUG ====================
+    {
+        "task_id": "easy-debug-001",
+        "title": "KeyError in Column Access",
+        "difficulty": "easy",
+        "task_type": "debug",
+        "description": "Fix code that crashes on invalid column name.",
+        "function_signature": "def process_orders(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "order_id,qty,price\nO001,2,50.00\nO002,3,75.00",
+            "description": "Order data"
+        },
+        "current_code": "def process_orders(df):\n    df['revenue'] = df['qty'] * df['unit_price']\n    return df",
+        "error_message": "KeyError: 'unit_price'",
+        "feedback": "The column is named 'price', not 'unit_price'. Fix the column reference.",
+        "test_cases": [
+            {"csv": "order_id,qty,price\nO001,2,50", "assertions": [
+                "'revenue' in result.columns",
+                "result.iloc[0]['revenue'] == 100"
+            ]}
+        ]
+    },
+    {
+        "task_id": "easy-debug-002",
+        "title": "TypeError in Date Parsing",
+        "difficulty": "easy",
+        "task_type": "debug",
+        "description": "Fix code trying to do arithmetic on string dates.",
+        "function_signature": "def calculate_days_old(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "record_id,date\nR001,2024-01-15\nR002,2024-01-10",
+            "description": "Records with date strings"
+        },
+        "current_code": "def calculate_days_old(df):\n    df['days_old'] = pd.Timestamp.now() - df['date']\n    return df",
+        "error_message": "TypeError: unsupported operand type(s) for -: 'Timestamp' and 'str'",
+        "feedback": "Need to convert date column to datetime first using pd.to_datetime().",
+        "test_cases": [
+            {"csv": "record_id,date\nR001,2024-01-15", "assertions": [
+                "'days_old' in result.columns"
+            ]}
+        ]
+    },
+    {
+        "task_id": "easy-debug-003",
+        "title": "Index Out of Bounds",
+        "difficulty": "easy",
+        "task_type": "debug",
+        "description": "Fix code accessing non-existent DataFrame rows.",
+        "function_signature": "def get_first_three(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "id,value\n1,100\n2,200",
+            "description": "Small dataset"
+        },
+        "current_code": "def get_first_three(df):\n    return df.iloc[0:3]",
+        "error_message": "No error technically, but ensure correct behavior with <3 rows",
+        "feedback": "Function should handle DataFrames with fewer than 3 rows gracefully.",
+        "test_cases": [
+            {"csv": "id,value\n1,100\n2,200", "assertions": [
+                "len(result) == 2"
+            ]}
+        ]
+    },
+    # ==================== MEDIUM DEBUG ====================
+    {
+        "task_id": "medium-debug-001",
+        "title": "SettingWithCopyWarning Becomes Bug",
+        "difficulty": "medium",
+        "task_type": "debug",
+        "description": "Fix SettingWithCopyWarning that causes silent data loss.",
+        "function_signature": "def transform_data(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "id,amount,status\n1,100,active\n2,200,inactive\n3,150,active",
+            "description": "Data to transform"
+        },
+        "current_code": "def transform_data(df):\n    active_rows = df[df['status'] == 'active']\n    active_rows['amount'] = active_rows['amount'] * 1.1\n    return df",
+        "error_message": "SettingWithCopyWarning and data not actually updated",
+        "feedback": "Chained indexing creates a view, not a copy. Use .copy() or use .loc for modification.",
+        "test_cases": [
+            {"csv": "id,amount,status\n1,100,active\n2,200,inactive", "assertions": [
+                "result.iloc[0]['amount'] == 110"
+            ]}
+        ]
+    },
+    {
+        "task_id": "medium-debug-002",
+        "title": "Groupby Without Reset Index",
+        "difficulty": "medium",
+        "task_type": "debug",
+        "description": "Fix code that doesn't properly convert grouped Series back to DataFrame.",
+        "function_signature": "def aggregate_by_category(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "category,value\nA,100\nA,200\nB,150",
+            "description": "Categorical data"
+        },
+        "current_code": "def aggregate_by_category(df):\n    result = df.groupby('category')['value'].sum()\n    result['count'] = result.groupby(level=0).size()\n    return result",
+        "error_message": "AttributeError or unexpected Series behavior",
+        "feedback": "After groupby, result is a Series. Need reset_index() to get DataFrame, then can add more columns.",
+        "test_cases": [
+            {"csv": "category,value\nA,100\nA,200\nB,150", "assertions": [
+                "isinstance(result, pd.DataFrame)",
+                "result.iloc[0]['value'] == 300"
+            ]}
+        ]
+    },
+    {
+        "task_id": "medium-debug-003",
+        "title": "Memory Error on Large File",
+        "difficulty": "medium",
+        "task_type": "debug",
+        "description": "Fix code that loads entire large CSV, causing memory error.",
+        "function_signature": "def process_large_csv(filepath):",
+        "data_sample": {
+            "format": "csv",
+            "content": "Simulated large file scenario",
+            "description": "Large dataset warning"
+        },
+        "current_code": "def process_large_csv(filepath):\n    df = pd.read_csv(filepath)\n    return df[df['value'] > 100].describe()",
+        "error_message": "MemoryError: Unable to allocate memory",
+        "feedback": "Use chunked reading with chunksize parameter instead of loading entire file.",
+        "test_cases": [
+            {"csv": "value\n50\n150", "assertions": [
+                "isinstance(result, pd.Series)"
+            ]}
+        ]
+    },
+    # ==================== HARD DEBUG ====================
+    {
+        "task_id": "hard-debug-001",
+        "title": "Cascading Errors (3-Step Fix)",
+        "difficulty": "hard",
+        "task_type": "debug",
+        "description": "Multi-step debugging: KeyError → TypeError → LogicError. Fix reveals next error.",
+        "function_signature": "def complex_pipeline(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "date,category,amount\n2024-01-15,A,100\n2024-01-16,B,200",
+            "description": "Complex data"
+        },
+        "current_code": "def complex_pipeline(df):\n    df['revenue'] = df['qty'] * df['price']\n    df['date'] = pd.to_datetime(df['date'])\n    df['month'] = df['date'].dt.month\n    return df.groupby('month')['revenue'].sum()",
+        "error_message": "Step 1: KeyError: 'qty'",
+        "feedback": "Use 'amount' instead of 'qty'. After this fix, additional errors will appear.",
+        "test_cases": [
+            {"csv": "date,category,amount\n2024-01-15,A,100", "assertions": [
+                "isinstance(result, pd.Series)",
+                "result.iloc[0] == 100"
+            ]}
+        ]
+    },
+    {
+        "task_id": "hard-debug-002",
+        "title": "Silent Wrong Output (No Error)",
+        "difficulty": "hard",
+        "task_type": "debug",
+        "description": "Code runs without error but produces wrong aggregation due to missing reset_index.",
+        "function_signature": "def rank_by_category(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": "category,value,rank\nA,100,\nA,200,\nB,150,",
+            "description": "Data to rank"
+        },
+        "current_code": "def rank_by_category(df):\n    df['rank'] = df.groupby('category')['value'].rank(method='dense')\n    return df",
+        "error_message": "No error, but rank column is 0.0 or NaN everywhere",
+        "feedback": "The groupby.rank() returns a Series with same index as df. Assignment might fail silently.",
+        "test_cases": [
+            {"csv": "category,value\nA,100\nA,200\nB,150", "assertions": [
+                "result['rank'].notna().all()",
+                "result.iloc[1]['rank'] > result.iloc[0]['rank']"
+            ]}
+        ]
+    },
+    {
+        "task_id": "hard-debug-003",
+        "title": "Locale-Specific Float Parsing",
+        "difficulty": "hard",
+        "task_type": "debug",
+        "description": "Fix code that mishandles locale-specific number formats (comma as decimal).",
+        "function_signature": "def parse_european_csv(df):",
+        "data_sample": {
+            "format": "csv",
+            "content": 'id,amount\n1,100.50\n2,200.75',
+            "description": "European format with comma decimals",
+        },
+        "current_code": "def parse_european_csv(df):\n    df['amount'] = pd.to_numeric(df['amount'])\n    return df['amount'].sum()",
+        "error_message": "ValueError: Unable to parse string",
+        "feedback": "Need to replace comma with period before parsing, or use decimal parameter.",
+        "test_cases": [
+            {"csv": "id,amount\n1,100.50\n2,200.75", "assertions": [
+                "isinstance(result, float)",
+                "result == 301.25"
+            ]}
+        ]
+    }
+]
 
 # ============================================================================
-# PROCEDURAL PROBLEM GENERATOR
+# TASK SELECTION AND UTILITIES
 # ============================================================================
 
-class ProceduralProblemGenerator:
-    """Generate randomized problem variants from templates"""
+def get_all_tasks():
+    """Get all 18 tasks (6 solve, 6 review, 6 debug)"""
+    return SOLVE_TASKS + REVIEW_TASKS + DEBUG_TASKS
 
-    def __init__(self, seed: int = None):
-        """
-        Initialize the generator with a seed.
-        
-        Args:
-            seed: Random seed for deterministic generation. If None, use random seed.
-        """
-        if seed is None:
-            seed = random.randint(0, 2**31 - 1)
-        self.seed = seed
-        random.seed(seed)
+def get_task_by_id(task_id: str) -> Dict[str, Any]:
+    """Get a specific task by ID"""
+    all_tasks = get_all_tasks()
+    for task in all_tasks:
+        if task['task_id'] == task_id:
+            return task.copy()
+    raise ValueError(f"Task not found: {task_id}")
 
-    def generate(self, problem_type: str, difficulty: str) -> Dict[str, Any]:
-        """
-        Generate a procedural problem.
-        
-        Args:
-            problem_type: Type of problem (two_sum, palindrome, sorting, string_search, math, tree, dp)
-            difficulty: Difficulty level (easy, medium, hard)
-            
-        Returns:
-            Problem dictionary with problem_id, title, description, test_cases, etc.
-        """
-        generators = {
-            "two_sum": self._generate_two_sum,
-            "palindrome": self._generate_palindrome,
-            "sorting": self._generate_sorting,
-            "string_search": self._generate_string_search,
-            "math": self._generate_math,
-            "tree": self._generate_tree,
-            "dp": self._generate_dp,
-        }
-
-        if problem_type not in generators:
-            raise ValueError(f"Unknown problem type: {problem_type}")
-
-        return generators[problem_type](difficulty)
-
-    def _generate_two_sum(self, difficulty: str) -> Dict[str, Any]:
-        """Generate Two Sum variant"""
-        # Randomize parameters
-        size = random.randint(10, 1000) if difficulty == "easy" else random.randint(100, 5000)
-        min_val = random.randint(-1000, -100)
-        max_val = random.randint(100, 1000)
-        allow_duplicates = random.choice([True, False])
-
-        # Generate array
-        if allow_duplicates:
-            arr = [random.randint(min_val, max_val) for _ in range(size)]
-        else:
-            arr = random.sample(range(min_val, max_val), min(size, max_val - min_val + 1))
-
-        # Pick valid pair
-        i, j = random.sample(range(len(arr)), 2)
-        target = arr[i] + arr[j]
-
-        # Test cases (10-20)
-        test_cases = [
-            {"input": {"nums": arr, "target": target}, "expected": sorted([i, j])}
-        ]
-
-        # Add edge cases from the full array
-        test_cases.extend(self._generate_two_sum_edge_cases(arr, target))
-
-        problem_id = f"two_sum_v{self.seed}"
-        return {
-            "problem_id": problem_id,
-            "title": f"Two Sum (Random v{self.seed})",
-            "difficulty": difficulty,
-            "description": f"Find two numbers in array of {len(arr)} elements that sum to {target}. Array values range from {min_val} to {max_val}. Duplicates {'allowed' if allow_duplicates else 'not allowed'}.",
-            "function_signature": "def two_sum(nums, target):",
-            "examples": f"Example:\nInput: nums = {arr[:5]}..., target = {target}\nOutput: [{i}, {j}]",
-            "constraints": f"{len(arr)} numbers, target = {target}, range [{min_val}, {max_val}]",
-            "test_cases": test_cases[:20],  # Cap at 20
-            "solution_template": "def two_sum(nums, target):\n    # Your solution here\n    pass",
-            "source": "procedural"
-        }
-
-    def _generate_two_sum_edge_cases(self, arr: List[int], target: int) -> List[Dict]:
-        """Generate edge case test cases for two_sum - only valid cases where answer exists"""
-        cases = []
-        # Find all valid pairs in the full array
-        seen_pairs = set()
-        for i in range(len(arr)):
-            for j in range(i + 1, len(arr)):
-                if arr[i] + arr[j] == target:
-                    pair_key = tuple(sorted([i, j]))
-                    if pair_key not in seen_pairs:
-                        seen_pairs.add(pair_key)
-                        cases.append({
-                            "input": {"nums": arr, "target": target},
-                            "expected": list(pair_key)
-                        })
-                        if len(cases) >= 5:  # Limit to 5 edge cases
-                            return cases
-        
-        # If no pairs found in full array, return empty (no additional test cases)
-        return cases
-
-    def _generate_palindrome(self, difficulty: str) -> Dict[str, Any]:
-        """Generate Palindrome variant"""
-        length = random.randint(10, 100) if difficulty == "easy" else random.randint(100, 500)
-        
-        # Determine character set
-        if difficulty == "easy":
-            charset = string.ascii_letters + " "
-        else:
-            charset = string.ascii_letters + string.digits + " .,!?"
-
-        # Generate non-palindrome
-        front = ''.join(random.choices(charset, k=length // 2))
-        s = front + ''.join(random.choices(charset, k=length % 2)) + front[::-1]
-
-        # Optionally make it a palindrome
-        if random.choice([True, False]):
-            is_pal = True
-        else:
-            is_pal = False
-            s = front + random.choice(charset) + front
-
-        test_cases = [
-            {"input": {"s": s}, "expected": is_pal}
-        ]
-
-        # Add edge cases
-        test_cases.append({"input": {"s": "a"}, "expected": True})
-        test_cases.append({"input": {"s": "ab"}, "expected": False})
-        test_cases.append({"input": {"s": "aba"}, "expected": True})
-        test_cases.append({"input": {"s": "A man, a plan, a canal: Panama"}, "expected": True})
-
-        problem_id = f"palindrome_v{self.seed}"
-        return {
-            "problem_id": problem_id,
-            "title": f"Palindrome Check (Random v{self.seed})",
-            "difficulty": difficulty,
-            "description": f"Check if string is palindrome (ignore spaces/punctuation, case-insensitive). Length ~{length}.",
-            "function_signature": "def is_palindrome(s):",
-            "examples": f"Example:\nInput: s = \"{s[:30]}...\"\nOutput: {is_pal}",
-            "constraints": f"String length ~{length}, characters: {charset[:10]}...",
-            "test_cases": test_cases[:20],
-            "solution_template": "def is_palindrome(s):\n    # Your solution here\n    pass",
-            "source": "procedural"
-        }
-
-    def _generate_sorting(self, difficulty: str) -> Dict[str, Any]:
-        """Generate Sorting variant"""
-        size = random.randint(10, 100) if difficulty == "easy" else random.randint(100, 1000)
-        min_val = random.randint(-1000, -100)
-        max_val = random.randint(100, 1000)
-        reverse = random.choice([True, False])
-
-        arr = [random.randint(min_val, max_val) for _ in range(size)]
-        expected = sorted(arr, reverse=reverse)
-
-        test_cases = [
-            {"input": {"nums": arr}, "expected": expected}
-        ]
-
-        # Edge cases
-        test_cases.extend([
-            {"input": {"nums": [1]}, "expected": [1]},
-            {"input": {"nums": [3, 1, 2]}, "expected": [1, 2, 3] if not reverse else [3, 2, 1]},
-            {"input": {"nums": []}, "expected": []},
-        ])
-
-        problem_id = f"sorting_v{self.seed}"
-        direction = "descending" if reverse else "ascending"
-        return {
-            "problem_id": problem_id,
-            "title": f"Sort Array ({direction.capitalize()}) v{self.seed}",
-            "difficulty": difficulty,
-            "description": f"Sort array of {len(arr)} numbers in {direction} order.",
-            "function_signature": "def sort_array(nums):",
-            "examples": f"Example:\nInput: {arr[:5]}...\nOutput: {expected[:5]}...",
-            "constraints": f"Array size: {len(arr)}, range: [{min_val}, {max_val}], order: {direction}",
-            "test_cases": test_cases[:20],
-            "solution_template": "def sort_array(nums):\n    # Your solution here\n    pass",
-            "source": "procedural"
-        }
-
-    def _generate_string_search(self, difficulty: str) -> Dict[str, Any]:
-        """Generate String Search variant"""
-        text_len = random.randint(100, 500) if difficulty == "easy" else random.randint(500, 5000)
-        pattern_len = random.randint(3, 20)
-        
-        text = ''.join(random.choices(string.ascii_lowercase, k=text_len))
-        pattern = ''.join(random.choices(string.ascii_lowercase, k=pattern_len))
-
-        # Sometimes add pattern to text
-        if random.choice([True, True, False]):  # 67% chance
-            idx = random.randint(0, len(text) - pattern_len)
-            text = text[:idx] + pattern + text[idx + pattern_len:]
-            expected_count = text.count(pattern)
-        else:
-            expected_count = 0
-
-        test_cases = [
-            {"input": {"text": text, "pattern": pattern}, "expected": expected_count}
-        ]
-
-        # Edge cases
-        test_cases.extend([
-            {"input": {"text": "aaaa", "pattern": "aa"}, "expected": 3},
-            {"input": {"text": "abc", "pattern": "xyz"}, "expected": 0},
-        ])
-
-        problem_id = f"string_search_v{self.seed}"
-        return {
-            "problem_id": problem_id,
-            "title": f"String Search v{self.seed}",
-            "difficulty": difficulty,
-            "description": f"Find number of non-overlapping occurrences of pattern in text.",
-            "function_signature": "def count_pattern(text, pattern):",
-            "examples": f"Example:\nInput: text = \"{text[:30]}...\", pattern = \"{pattern}\"\nOutput: {expected_count}",
-            "constraints": f"Text length: {text_len}, pattern length: {pattern_len}",
-            "test_cases": test_cases[:20],
-            "solution_template": "def count_pattern(text, pattern):\n    # Your solution here\n    pass",
-            "source": "procedural"
-        }
-
-    def _generate_math(self, difficulty: str) -> Dict[str, Any]:
-        """Generate Math/Sequence variant"""
-        if difficulty == "easy":
-            # Fibonacci
-            n = random.randint(5, 20)
-            
-            def fib(x):
-                if x <= 1:
-                    return x
-                a, b = 0, 1
-                for _ in range(x - 1):
-                    a, b = b, a + b
-                return b
-
-            expected = fib(n)
-            test_cases = [
-                {"input": {"n": n}, "expected": expected},
-                {"input": {"n": 0}, "expected": 0},
-                {"input": {"n": 1}, "expected": 1},
-                {"input": {"n": 5}, "expected": 5},
-            ]
-            func_name = "fibonacci"
-        else:
-            # Primes
-            limit = random.randint(100, 500)
-
-            def count_primes(x):
-                if x < 2:
-                    return 0
-                sieve = [True] * x
-                sieve[0] = sieve[1] = False
-                for i in range(2, int(x**0.5) + 1):
-                    if sieve[i]:
-                        for j in range(i*i, x, i):
-                            sieve[j] = False
-                return sum(sieve)
-
-            expected = count_primes(limit)
-            test_cases = [
-                {"input": {"n": limit}, "expected": expected},
-                {"input": {"n": 10}, "expected": 4},  # 2, 3, 5, 7
-                {"input": {"n": 0}, "expected": 0},
-            ]
-            func_name = "count_primes"
-
-        problem_id = f"math_v{self.seed}"
-        return {
-            "problem_id": problem_id,
-            "title": f"{func_name.replace('_', ' ').title()} v{self.seed}",
-            "difficulty": difficulty,
-            "description": f"Compute {func_name} for given input.",
-            "function_signature": f"def {func_name}(n):",
-            "examples": f"Example:\nInput: n = {n if difficulty == 'easy' else limit}\nOutput: {expected}",
-            "constraints": f"Input range varies by problem type",
-            "test_cases": test_cases[:20],
-            "solution_template": f"def {func_name}(n):\n    # Your solution here\n    pass",
-            "source": "procedural"
-        }
-
-    def _generate_tree(self, difficulty: str) -> Dict[str, Any]:
-        """Generate Tree variant (medium/hard)"""
-        height = random.randint(2, 5) if difficulty == "medium" else random.randint(3, 6)
-
-        def make_tree(h):
-            if h == 0:
-                return None
-            return {
-                "val": random.randint(1, 100),
-                "left": make_tree(h - 1),
-                "right": make_tree(h - 1)
-            }
-
-        tree = make_tree(height)
-
-        def tree_height(node):
-            if node is None:
-                return -1
-            return 1 + max(tree_height(node.get("left")), tree_height(node.get("right")))
-
-        expected = tree_height(tree)
-
-        test_cases = [
-            {"input": {"root": tree}, "expected": expected},
-            {"input": {"root": None}, "expected": -1},
-            {"input": {"root": {"val": 1, "left": None, "right": None}}, "expected": 0},
-        ]
-
-        problem_id = f"tree_v{self.seed}"
-        return {
-            "problem_id": problem_id,
-            "title": f"Tree Height v{self.seed}",
-            "difficulty": difficulty,
-            "description": f"Find height of binary tree (height = max edge count from root to leaf).",
-            "function_signature": "def tree_height(root):",
-            "examples": "Example:\nInput: tree with height 3\nOutput: 3",
-            "constraints": f"Tree height up to {height}",
-            "test_cases": test_cases[:20],
-            "solution_template": "def tree_height(root):\n    # Your solution here\n    pass",
-            "source": "procedural"
-        }
-
-    def _generate_dp(self, difficulty: str) -> Dict[str, Any]:
-        """Generate Dynamic Programming variant (hard)"""
-        # Coin Change
-        coins = sorted(random.sample(range(1, 20), random.randint(2, 5)))
-        amount = random.randint(10, 100)
-
-        def coin_change(coins_list, amt):
-            dp = [float('inf')] * (amt + 1)
-            dp[0] = 0
-            for coin in coins_list:
-                for i in range(coin, amt + 1):
-                    dp[i] = min(dp[i], dp[i - coin] + 1)
-            return dp[amt] if dp[amt] != float('inf') else -1
-
-        expected = coin_change(coins, amount)
-
-        test_cases = [
-            {"input": {"coins": coins, "amount": amount}, "expected": expected},
-            {"input": {"coins": [1], "amount": 0}, "expected": 0},
-            {"input": {"coins": [2], "amount": 3}, "expected": -1},
-        ]
-
-        problem_id = f"dp_v{self.seed}"
-        return {
-            "problem_id": problem_id,
-            "title": f"Coin Change v{self.seed}",
-            "difficulty": difficulty,
-            "description": f"Find minimum coins needed to make amount {amount} using coins {coins}.",
-            "function_signature": "def coin_change(coins, amount):",
-            "examples": f"Example:\nInput: coins = {coins}, amount = {amount}\nOutput: {expected}",
-            "constraints": f"Coins: {coins}, amount: {amount}",
-            "test_cases": test_cases[:20],
-            "solution_template": "def coin_change(coins, amount):\n    # Your solution here (DP recommended)\n    pass",
-            "source": "procedural"
-        }
-
-
-def get_canonical_problem(problem_id: str) -> Dict[str, Any]:
-    """Get a canonical problem by ID"""
-    for problem in CANONICAL_PROBLEMS:
-        if problem["problem_id"] == problem_id:
-            return problem
-    return None
-
-
-def get_problem_by_id(problem_id: str) -> Dict[str, Any]:
-    """Get a problem by ID (canonical or procedural)"""
-    # First try canonical
-    for problem in CANONICAL_PROBLEMS:
-        if problem["problem_id"] == problem_id:
-            return problem
-    
-    # If not found and ID looks procedural, try to regenerate it
-    if "_v" in problem_id:
-        base_name, seed_str = problem_id.rsplit("_v", 1)
-        try:
-            seed = int(seed_str)
-            gen = ProceduralProblemGenerator(seed=seed)
-            return gen.generate(base_name, "easy")  # Default to easy
-        except (ValueError, KeyError):
-            pass
-
-    return None
-
-
-def get_problems_by_difficulty(difficulty: str) -> List[Dict[str, Any]]:
-    """Get all canonical problems of a given difficulty"""
-    return [p for p in CANONICAL_PROBLEMS if p["difficulty"] == difficulty]
-
-
-def get_buggy_problems_by_difficulty(difficulty: str) -> List[Dict[str, Any]]:
-    """Get all buggy problems of a given difficulty"""
-    return [p for p in BUGGY_PROBLEMS if p["difficulty"] == difficulty]
-
-
-def get_random_canonical_problem(difficulty: str = None) -> Dict[str, Any]:
-    """Get a random canonical problem, optionally filtered by difficulty"""
-    if difficulty:
-        problems = get_problems_by_difficulty(difficulty)
+def get_tasks_by_type_and_difficulty(task_type: str, difficulty: str) -> List[Dict[str, Any]]:
+    """Get tasks filtered by type and difficulty"""
+    if task_type == "solve":
+        tasks = SOLVE_TASKS
+    elif task_type == "review":
+        tasks = REVIEW_TASKS
+    elif task_type == "debug":
+        tasks = DEBUG_TASKS
     else:
-        problems = CANONICAL_PROBLEMS
+        raise ValueError(f"Invalid task_type: {task_type}")
     
-    return random.choice(problems) if problems else None
+    filtered = [t for t in tasks if t['difficulty'] == difficulty]
+    return [t.copy() for t in filtered]
 
-
-def get_random_buggy_problem(difficulty: str = None) -> Dict[str, Any]:
-    """Get a random buggy problem, optionally filtered by difficulty"""
+def select_random_task(task_type: str = None, difficulty: str = None) -> Dict[str, Any]:
+    """Select a random task, optionally filtered"""
+    all_tasks = get_all_tasks()
+    
+    if task_type:
+        all_tasks = [t for t in all_tasks if t['task_type'] == task_type]
     if difficulty:
-        problems = get_buggy_problems_by_difficulty(difficulty)
-    else:
-        problems = BUGGY_PROBLEMS
+        all_tasks = [t for t in all_tasks if t['difficulty'] == difficulty]
     
-    return random.choice(problems) if problems else None
+    if not all_tasks:
+        raise ValueError("No tasks match filters")
+    
+    return random.choice(all_tasks).copy()
 

@@ -1,6 +1,6 @@
 spec_version: 1
-name: code-solver-env
-description: "RL environment where an agent solves LeetCode-style coding problems by writing Python code executed against test cases"
+name: apex-data-pipeline
+description: "RL environment where an agent acts as a data engineer - writing, reviewing, and debugging real-world data pipelines using pandas, CSV, JSON, and ETL tasks"
 type: rl-environment
 runtime: docker
 app: run_server.py

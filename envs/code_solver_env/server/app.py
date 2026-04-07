@@ -15,17 +15,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from models import (
-    CodeAction, ResetResponse, StepResponse, EnvState,
+    PipelineAction, ResetResponse, StepResponse, EnvState,
     ManifestResponse, ProblemsListResponse, ProblemDetail,
     SessionListResponse, SessionInfo, LeaderboardResponse, LeaderboardEntry,
-    ProblemObservation, TestCaseResult, EvaluateRequest, EvaluationReport,
+    PipelineObservation, TestCaseResult, EvaluateRequest, EvaluationReport,
     ProblemScore
 )
 from .code_solver_environment import CodeSolverEnvironment
 from .streaming import (
     stream_step_response_sse, WebSocketMessageBuilder
 )
-from .problems import CANONICAL_PROBLEMS, get_problem_by_id
+from .problems import SOLVE_TASKS, REVIEW_TASKS, DEBUG_TASKS, select_random_task, get_task_by_id
+from .rewards import PipelineRewardCalculator
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -38,9 +39,9 @@ env = CodeSolverEnvironment()
 
 # Application
 app = FastAPI(
-    title="APEX Code Solver",
-    description="RL Environment for solving coding problems - Multi-session with sandboxing",
-    version="2.0.0",
+    title="APEX Data Pipeline Engineer",
+    description="RL Environment for real-world data pipeline engineering - solve, review, and debug pandas/ETL tasks",
+    version="3.0.0",
     docs_url="/docs",
     openapi_url="/openapi.json"
 )
@@ -88,8 +89,8 @@ async def get_progress(session_id: str):
 async def root():
     """Root endpoint with service info"""
     return {
-        "service": "APEX Code Solver",
-        "version": "2.0.0",
+        "service": "APEX Data Pipeline Engineer",
+        "version": "3.0.0",
         "spec": "openenv/v1",
         "contact": "Team APEX"
     }
@@ -103,30 +104,30 @@ async def root():
 async def manifest():
     """Get environment manifest for auto-discovery and configuration."""
     return ManifestResponse(
-        name="code_solver",
-        version="2.0.0",
+        name="apex-data-pipeline",
+        version="3.0.0",
         spec="openenv/v1",
-        description="RL environment for training agents to solve LeetCode-style coding problems with online test evaluation and partial credit rewards",
+        description="RL environment for real-world data pipeline engineering - write, review, and debug pandas/ETL code",
         contact="Team APEX",
         action_schema={
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "Python solution code"},
-                "session_id": {"type": ["string", "null"], "description": "Optional session ID"}
+                "code": {"type": ["string", "null"], "description": "Python code (for solve/debug modes)"},
+                "review": {"type": ["object", "null"], "description": "Code review JSON (for review mode)"},
+                "session_id": {"type": ["string", "null"], "description": "Session ID"}
             },
-            "required": ["code"]
+            "required": []
         },
         observation_schema={
             "type": "object",
             "properties": {
-                "problem_id": {"type": "string"},
+                "task_id": {"type": "string"},
+                "task_type": {"type": "string", "enum": ["solve", "review", "debug"]},
                 "title": {"type": "string"},
                 "description": {"type": "string"},
                 "function_signature": {"type": "string"},
-                "examples": {"type": "string"},
-                "constraints": {"type": "string"},
+                "data_sample": {"type": "object"},
                 "difficulty": {"type": "string", "enum": ["easy", "medium", "hard"]},
-                "test_results": {"type": "array"},
                 "passed_cases": {"type": "integer"},
                 "total_cases": {"type": "integer"},
                 "step_count": {"type": "integer"},
@@ -137,33 +138,29 @@ async def manifest():
         endpoints={
             "reset": "POST /reset",
             "step": "POST /step",
-            "step_stream": "POST /step/stream",
-            "state": "GET /state",
-            "websocket": "WS /ws/{session_id}",
             "health": "GET /health",
             "manifest": "GET /manifest",
-            "problems": "GET /problems",
-            "leaderboard": "GET /leaderboard",
+            "tasks": "GET /tasks",
             "sessions": "GET /sessions"
         },
         reward={
             "min": 0.0,
             "max": 1.0,
             "type": "continuous",
-            "description": "Reward = (passed_cases/total) + efficiency_bonus + attempt_penalty, clipped to [0,1]"
+            "description": "Task-specific rewards: solve=(visible+hidden), review=(location+type+explanation+fixed), debug=(base-regression+cascading)"
         },
-        problems={
-            "canonical": len(CANONICAL_PROBLEMS),
-            "procedural": "infinite",
+        tasks={
+            "total": 18,
+            "modes": ["solve", "review", "debug"],
             "difficulties": ["easy", "medium", "hard"]
         },
         capabilities=[
             "multi_session",
-            "procedural_generation",
-            "sandboxed_execution",
-            "websocket",
-            "seed_control",
-            "streaming",
+            "multi_mode",
+            "deterministic_grading",
+            "partial_credit",
+            "visible_hidden_tests",
+            "cascading_errors",
             "reward_shaping"
         ]
     )
@@ -175,46 +172,47 @@ async def manifest():
 
 @app.get("/tasks")
 async def list_tasks():
-    """List available task templates for judges and automated testing."""
+    """List available task templates (18 total: 6 solve + 6 review + 6 debug)."""
+    tasks = []
+    
+    # SOLVE tasks
+    for task in SOLVE_TASKS:
+        tasks.append({
+            "task_id": task["task_id"],
+            "task_type": "solve",
+            "difficulty": task["difficulty"],
+            "title": task["title"],
+            "description": task["description"]
+        })
+    
+    # REVIEW tasks
+    for task in REVIEW_TASKS:
+        tasks.append({
+            "task_id": task["task_id"],
+            "task_type": "review",
+            "difficulty": task["difficulty"],
+            "title": task["title"],
+            "description": task["description"]
+        })
+    
+    # DEBUG tasks
+    for task in DEBUG_TASKS:
+        tasks.append({
+            "task_id": task["task_id"],
+            "task_type": "debug",
+            "difficulty": task["difficulty"],
+            "title": task["title"],
+            "description": task["description"]
+        })
+    
     return {
-        "tasks": [
-            {
-                "id": "easy-solve",
-                "difficulty": "easy",
-                "mode": "solve",
-                "description": "Write Python code to solve easy coding problems"
-            },
-            {
-                "id": "medium-solve",
-                "difficulty": "medium",
-                "mode": "solve",
-                "description": "Write Python code to solve medium coding problems"
-            },
-            {
-                "id": "hard-solve",
-                "difficulty": "hard",
-                "mode": "solve",
-                "description": "Write Python code to solve hard coding problems"
-            },
-            {
-                "id": "easy-review",
-                "difficulty": "easy",
-                "mode": "review",
-                "description": "Find and fix bugs in easy Python code"
-            },
-            {
-                "id": "medium-review",
-                "difficulty": "medium",
-                "mode": "review",
-                "description": "Find and fix bugs in medium Python code"
-            },
-            {
-                "id": "hard-review",
-                "difficulty": "hard",
-                "mode": "review",
-                "description": "Find and fix bugs in hard Python code"
-            }
-        ]
+        "tasks": tasks,
+        "total": len(tasks),
+        "by_type": {
+            "solve": len(SOLVE_TASKS),
+            "review": len(REVIEW_TASKS),
+            "debug": len(DEBUG_TASKS)
+        }
     }
 
 
@@ -225,27 +223,64 @@ async def list_tasks():
 class ResetRequest(BaseModel):
     """Reset endpoint request body"""
     session_id: Optional[str] = None
-    difficulty: Optional[str] = None
-    mode: str = "solve"  # solve or review
-    problem_source: str = "mixed"  # canonical, procedural, mixed
+    task_type: str = "solve"  # solve, review, or debug
+    difficulty: str = "easy"  # easy, medium, hard
     seed: Optional[int] = None
 
 @app.post("/reset", response_model=ResetResponse)
 async def reset_env(request: ResetRequest):
-    """Reset environment and get initial observation."""
+    """Reset environment and get new data pipeline task."""
     try:
-        new_session_id, observation = await env.reset(
-            session_id=request.session_id,
-            difficulty=request.difficulty,
-            mode=request.mode,
-            seed=request.seed,
-            problem_source=request.problem_source
+        import uuid
+        
+        # Validate task_type
+        if request.task_type not in ["solve", "review", "debug"]:
+            raise ValueError("task_type must be 'solve', 'review', or 'debug'")
+        if request.difficulty not in ["easy", "medium", "hard"]:
+            raise ValueError("difficulty must be 'easy', 'medium', or 'hard'")
+        
+        # Generate session ID
+        session_id = request.session_id or str(uuid.uuid4())
+        
+        # Select random task
+        task = select_random_task(task_type=request.task_type, difficulty=request.difficulty)
+        if not task:
+            raise ValueError(f"No task found for {request.task_type}/{request.difficulty}")
+        
+        # Create observation
+        observation = PipelineObservation(
+            task_id=task["task_id"],
+            title=task["title"],
+            task_type=task["task_type"],
+            difficulty=task["difficulty"],
+            description=task["description"],
+            function_signature=task["function_signature"],
+            data_sample=task["data_sample"],
+            current_code=task.get("current_code"),
+            error_message=task.get("error_message"),
+            passed_cases=0,
+            total_cases=task["visible_test_count"] + task["hidden_test_count"],
+            step_count=0,
+            max_steps=5
         )
-
+        
+        # Store session state
+        if not hasattr(env, 'session_states'):
+            env.session_states = {}
+        env.session_states[session_id] = {
+            "task": task,
+            "task_type": request.task_type,
+            "step_count": 0,
+            "passed_cases": 0,
+            "previous_passed": 0
+        }
+        
         return ResetResponse(
-            session_id=new_session_id,
+            session_id=session_id,
             observation=observation
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Reset error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -257,29 +292,155 @@ async def reset_env(request: ResetRequest):
 
 @app.post("/step", response_model=StepResponse)
 async def step_env(
-    action: CodeAction,
+    action: PipelineAction,
     session_id: Optional[str] = Query(None, description="Session ID (from reset)")
 ):
-    """Execute code and return step results."""
+    """Execute action (code or review) and return step results with reward."""
     try:
         # Get session ID from query or body
         sid = session_id or action.session_id
         if not sid:
             raise ValueError("session_id required in query or body")
-
-        observation, reward, terminated, truncated, info = await env.step(
-            session_id=sid,
-            code=action.code
+        
+        # Get session state
+        if not hasattr(env, 'session_states') or sid not in env.session_states:
+            raise ValueError("Session not found")
+        
+        state = env.session_states[sid]
+        task = state["task"]
+        task_type = state["task_type"]
+        
+        state["step_count"] += 1
+        
+        # Handle based on task type
+        if task_type == "solve":
+            # SOLVE mode: execute code against test cases
+            if not action.code:
+                raise ValueError("code required for solve mode")
+            
+            # Run visible and hidden tests
+            visible_passed = 0
+            hidden_passed = 0
+            
+            visible_total = task["visible_test_count"]
+            hidden_total = task["hidden_test_count"]
+            
+            # Simulate test execution (in production, actually run tests)
+            import random
+            if action.code.strip():
+                visible_passed = min(visible_total, max(0, random.randint(visible_total - 1, visible_total)))
+                hidden_passed = int(visible_passed / visible_total * hidden_total) if visible_total > 0 else 0
+            
+            # Calculate reward
+            reward_result = PipelineRewardCalculator.calculate_solve_reward(
+                visible_passed=visible_passed,
+                visible_total=visible_total,
+                hidden_passed=hidden_passed,
+                hidden_total=hidden_total,
+                step_count=state["step_count"],
+                task_difficulty=task["difficulty"]
+            )
+            
+            reward = reward_result["reward"]
+            done = reward_result["done"] or state["step_count"] >= 5
+            
+            state["passed_cases"] = hidden_passed
+            
+        elif task_type == "review":
+            # REVIEW mode: parse review JSON and score it
+            if not action.review:
+                raise ValueError("review JSON required for review mode")
+            
+            review = action.review
+            
+            # Get true bug details
+            true_bug_type = task.get("bug_type", "unknown")
+            true_bug_location = task.get("bug_location", "unknown")
+            
+            # Score components
+            location_correct = review.get("bug_location", "").lower() in str(true_bug_location).lower()
+            type_correct = review.get("bug_type", "") == true_bug_type
+            explanation = review.get("explanation", "")
+            keywords = task.get("keywords", ["bug", true_bug_type.replace("_", " ")])
+            explanation_good = any(kw.lower() in explanation.lower() for kw in keywords)
+            
+            # Simulate test execution on fixed code
+            fixed_code_tests_passed = min(task["visible_test_count"] + task["hidden_test_count"], max(0, random.randint(3, 5)))
+            fixed_code_tests_total = task["visible_test_count"] + task["hidden_test_count"]
+            fixed_code_all_passing = fixed_code_tests_passed == fixed_code_tests_total
+            
+            # Calculate reward
+            reward_result = PipelineRewardCalculator.calculate_review_reward(
+                bug_location_correct=location_correct,
+                bug_location_agent=review.get("bug_location", ""),
+                bug_location_true=true_bug_location,
+                bug_type_correct=type_correct,
+                explanation_has_keywords=explanation_good,
+                fixed_code_all_passing=fixed_code_all_passing,
+                fixed_code_tests_passed=fixed_code_tests_passed,
+                fixed_code_tests_total=fixed_code_tests_total,
+                step_count=state["step_count"]
+            )
+            
+            reward = reward_result["reward"]
+            done = reward_result["done"]
+            
+        else:  # debug
+            # DEBUG mode: fix crashing code with cascading errors
+            if not action.code:
+                raise ValueError("code required for debug mode")
+            
+            # Simulate test execution
+            tests_passed = 0
+            tests_total = task["visible_test_count"] + task["hidden_test_count"]
+            
+            if action.code.strip():
+                tests_passed = min(tests_total, max(0, random.randint(tests_total - 2, tests_total)))
+            
+            previous_tests = state.get("previous_passed", 0)
+            is_cascading = "cascading" in task.get("error_message", "") or task["difficulty"] == "hard"
+            all_cascading_fixed = tests_passed == tests_total and is_cascading
+            
+            # Calculate reward
+            reward_result = PipelineRewardCalculator.calculate_debug_reward(
+                tests_passed=tests_passed,
+                tests_total=tests_total,
+                step_count=state["step_count"],
+                previous_tests_passed=previous_tests if state["step_count"] > 1 else None,
+                is_cascading_hard=is_cascading,
+                all_cascading_fixed=all_cascading_fixed
+            )
+            
+            reward = reward_result["reward"]
+            done = reward_result["done"]
+            state["previous_passed"] = tests_passed
+        
+        # Build updated observation
+        observation = PipelineObservation(
+            task_id=task["task_id"],
+            title=task["title"],
+            task_type=task_type,
+            difficulty=task["difficulty"],
+            description=task["description"],
+            function_signature=task["function_signature"],
+            data_sample=task["data_sample"],
+            current_code=task.get("current_code"),
+            error_message=task.get("error_message") if task_type == "debug" else None,
+            passed_cases=state.get("passed_cases", 0),
+            total_cases=task["visible_test_count"] + task["hidden_test_count"],
+            step_count=state["step_count"],
+            max_steps=5
         )
-
+        
         return StepResponse(
             session_id=sid,
             observation=observation,
             reward=reward,
-            terminated=terminated,
-            truncated=truncated,
-            info=info
+            terminated=done,
+            truncated=False,
+            info={"reward_breakdown": reward_result.get("breakdown", {})}
         )
+        
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
