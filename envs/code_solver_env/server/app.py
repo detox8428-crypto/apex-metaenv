@@ -450,7 +450,7 @@ async def step_env(
 
 @app.post("/step/stream")
 async def step_stream(
-    action: CodeAction,
+    action: PipelineAction,
     session_id: Optional[str] = Query(None)
 ):
     """Execute code with streaming results via Server-Sent Events (SSE)."""

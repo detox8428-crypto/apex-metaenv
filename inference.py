@@ -199,7 +199,7 @@ class DataPipelineAgent:
         """Reset environment and get observation"""
         if self.use_local:
             from envs.code_solver_env.server.code_solver_environment import CodeSolverEnvironment
-            from envs.code_solver_env.models import ProblemObservation
+            from envs.code_solver_env.models import PipelineObservation
             
             env = CodeSolverEnvironment()
             session_id, observation = await env.reset(
@@ -230,11 +230,11 @@ class DataPipelineAgent:
         """Execute step and return reward, done, info"""
         if self.use_local:
             from envs.code_solver_env.server.code_solver_environment import CodeSolverEnvironment
-            from envs.code_solver_env.models import CodeAction
+            from envs.code_solver_env.models import PipelineAction
             
             env = CodeSolverEnvironment()
             
-            code_action = CodeAction(code=action, session_id=session_id)
+            code_action = PipelineAction(code=action, session_id=session_id)
             result = await env.step(
                 session_id=session_id,
                 code=action

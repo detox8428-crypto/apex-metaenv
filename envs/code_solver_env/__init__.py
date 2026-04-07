@@ -1,12 +1,13 @@
-"""Code Solver Environment Package"""
+"""Data Pipeline Engineer RL Environment Package"""
 
-from .models import CodeSolverAction, CodeSolverObservation, CodeSolverState
+from .models import PipelineAction, PipelineObservation, DataSample, ReviewSubmission
 from .client import CodeSolverClient
 
-__version__ = "0.1.0"
+__version__ = "3.0.0"
 __all__ = [
-    "CodeSolverAction",
-    "CodeSolverObservation",
-    "CodeSolverState",
+    "PipelineAction",
+    "PipelineObservation",
+    "DataSample",
+    "ReviewSubmission",
     "CodeSolverClient"
 ]

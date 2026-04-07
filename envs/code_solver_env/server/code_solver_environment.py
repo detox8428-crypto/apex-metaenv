@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional, Tuple
 from asyncio import Lock
 
 from models import (
-    CodeAction, ProblemObservation, TestCaseResult, CodeSolverObservation, CodeSolverState,
+    PipelineAction, PipelineObservation, TestCaseResult,
     EnvState, StepResponse, ResetResponse
 )
 from .sandbox import execute_code_sandboxed
@@ -285,7 +285,7 @@ class CodeSolverEnvironment:
         mode: str = "solve",  # solve or review
         seed: Optional[int] = None,
         problem_source: str = "mixed"  # canonical, procedural, mixed
-    ) -> Tuple[str, ProblemObservation]:
+    ) -> Tuple[str, PipelineObservation]:
         """
         Reset environment and select a problem.
         
@@ -395,7 +395,7 @@ class CodeSolverEnvironment:
         self,
         session_id: str,
         code: str
-    ) -> Tuple[ProblemObservation, float, bool, bool, Dict[str, Any]]:
+    ) -> Tuple[PipelineObservation, float, bool, bool, Dict[str, Any]]:
         """
         Execute code and return results.
         
@@ -586,7 +586,7 @@ class CodeSolverEnvironment:
         test_results: list = None,
         error_message: str = None,
         description_override: str = None
-    ) -> ProblemObservation:
+    ) -> PipelineObservation:
         """Convert problem dict to ProblemObservation model"""
         if test_results is None:
             test_results = []
@@ -594,7 +594,7 @@ class CodeSolverEnvironment:
         # Use override description if provided (for review mode)
         description = description_override if description_override else problem["description"]
 
-        return ProblemObservation(
+        return PipelineObservation(
             problem_id=problem["problem_id"],
             title=problem["title"],
             description=description,
@@ -610,9 +610,9 @@ class CodeSolverEnvironment:
             max_steps=max_steps
         )
 
-    def _create_error_observation(self, error_msg: str) -> CodeSolverObservation:
+    def _create_error_observation(self, error_msg: str) -> PipelineObservation:
         """Create an error observation"""
-        return CodeSolverObservation(
+        return PipelineObservation(
             problem_id="error",
             title="Error",
             description=error_msg,
@@ -627,6 +627,6 @@ class CodeSolverEnvironment:
         )
 
     @property
-    def state(self) -> CodeSolverState:
+    def state(self) -> EnvState:
         """Get current state"""
         return self._state
