@@ -19,5 +19,6 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 7860
 
-CMD ["python", "run_server.py"]
+# Run Gradio app for HF Spaces
+CMD ["python", "app_gradio.py"]
 
