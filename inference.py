@@ -9,7 +9,6 @@ import os
 import sys
 import json
 import time
-import json
 import logging
 from typing import Dict, Any, Tuple
 from environment import APEXEnvironment
@@ -199,15 +198,6 @@ def main():
 if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)
-
-        
-        episode_rewards = []
-        episode_steps = 0
-        success = False
-        
-        try:
-            for step_num in range(1, 6):
-                episode_steps = step_num
                 code = self._generate_solve_code(observation)
                 reward, done, info = await self._step(session_id, code, "solve")
                 episode_rewards.append(reward)
