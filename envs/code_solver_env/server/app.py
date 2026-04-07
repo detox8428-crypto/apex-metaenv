@@ -401,14 +401,18 @@ async def step_env(
             
         else:  # debug
             # DEBUG mode: fix crashing code with cascading errors
-            if not action.code:
-                raise ValueError("code required for debug mode")
+            # Accept either code (fix) or diagnosis (explanation)
+            if not action.code and not action.diagnosis:
+                raise ValueError("code or diagnosis required for debug mode")
+            
+            # Use diagnosis as the submission (in production, analyze for quality)
+            submission = action.diagnosis or action.code
             
             # Simulate test execution
             tests_passed = 0
             tests_total = task["visible_test_count"] + task["hidden_test_count"]
             
-            if action.code.strip():
+            if submission and submission.strip():
                 tests_passed = min(tests_total, max(0, random.randint(tests_total - 2, tests_total)))
             
             previous_tests = state.get("previous_passed", 0)
@@ -432,14 +436,19 @@ async def step_env(
         # Build updated observation
         observation = PipelineObservation(
             task_id=task["task_id"],
+            domain=state.get("domain", "data_pipeline"),  # Include domain
             title=task["title"],
             task_type=task_type,
             difficulty=task["difficulty"],
             description=task["description"],
-            function_signature=task["function_signature"],
-            data_sample=task["data_sample"],
+            function_signature=task.get("function_signature"),
+            data_sample=task.get("data_sample"),
             current_code=task.get("current_code"),
+            incident=task.get("incident"),
+            code_context=task.get("code_context"),
             error_message=task.get("error_message") if task_type == "debug" else None,
+            visible_test_results=task.get("visible_test_results"),
+            feedback=None,
             passed_cases=state.get("passed_cases", 0),
             total_cases=task["visible_test_count"] + task["hidden_test_count"],
             step_count=state["step_count"],

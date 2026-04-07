@@ -9,6 +9,7 @@ class PipelineAction(BaseModel):
     """Action: agent submits code or review for data pipeline task"""
     code: Optional[str] = Field(None, description="Python solution code (for solve/debug tasks)")
     review: Optional[dict] = Field(None, description="Code review JSON (for review tasks)")
+    diagnosis: Optional[str] = Field(None, description="Incident diagnosis (for incident_debug tasks)")
     session_id: Optional[str] = Field(None, description="Session ID for multi-session mode")
 
     class Config:
