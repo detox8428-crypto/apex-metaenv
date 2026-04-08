@@ -68,38 +68,31 @@ async def root():
 
 @app.post("/reset", response_model=ResetResponse)
 async def reset_env(
-    request: Request,
-    domain: Optional[str] = Query(default=None, description="data_pipeline, code_review, or incident_debug"),
-    difficulty: Optional[str] = Query(default=None, description="easy, medium, or hard")
+    domain: str = Query(default="data_pipeline"),
+    difficulty: str = Query(default="easy"),
+    body: Optional[ResetRequest] = Body(default=None),
 ):
     """
     Reset environment (OpenEnv spec)
     
-    Supports both:
+    Supports BOTH:
     - Query params: POST /reset?domain=data_pipeline&difficulty=easy
     - JSON body: POST /reset with {"domain": "data_pipeline", "difficulty": "easy"}
     
     Returns: {session_id, observation}
     """
     try:
-        # Try to parse body if content-type is JSON
-        body_domain = None
-        body_difficulty = None
-        body_mode = "solve"
+        # Use body values only if query params are at their defaults
+        # This gives priority to explicitly passed query params
+        final_domain = domain
+        final_difficulty = difficulty
+        final_mode = "solve"
         
-        if request.headers.get("content-type") == "application/json":
-            try:
-                body_data = await request.json()
-                body_domain = body_data.get("domain")
-                body_difficulty = body_data.get("difficulty")
-                body_mode = body_data.get("mode", "solve")
-            except:
-                pass
-        
-        # Merge query params and body - query params take precedence
-        final_domain = domain or body_domain or "data_pipeline"
-        final_difficulty = difficulty or body_difficulty or "easy"
-        final_mode = body_mode
+        # If body provided and query params are defaults, use body values
+        if body and domain == "data_pipeline" and difficulty == "easy":
+            final_domain = body.domain
+            final_difficulty = body.difficulty
+            final_mode = body.mode
         
         session_id, observation = env.reset(
             domain=final_domain,
