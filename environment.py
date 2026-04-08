@@ -4,10 +4,100 @@ Manages sessions, resets, and steps
 """
 
 import uuid
-from typing import Dict, Tuple, Any
+import json
+import os
+import logging
+from typing import Dict, Tuple, Any, Optional
 from models import Observation, RewardInfo
 from tasks import get_task, TASKS
 from graders import DataPipelineGrader, CodeReviewGrader, IncidentDebugGrader
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ============================================================================
+# SESSION STORAGE - DUAL-LAYER (MEMORY + FILE)
+# ============================================================================
+
+# Memory cache for fast same-worker hits
+_memory_cache = {}
+
+# File storage for cross-worker persistence on HF Spaces
+SESSION_DIR = "/tmp/apex_sessions"
+
+# Create directory immediately when module loads
+try:
+    os.makedirs(SESSION_DIR, exist_ok=True)
+    # Verify we can write to it
+    test_path = os.path.join(SESSION_DIR, "test_write.json")
+    with open(test_path, 'w') as f:
+        json.dump({"test": True}, f)
+    os.remove(test_path)
+    logger.info(f"Session storage ready at {SESSION_DIR}")
+except Exception as e:
+    logger.error(f"Session storage FAILED: {e}")
+    # Fallback to current directory
+    SESSION_DIR = "./sessions"
+    os.makedirs(SESSION_DIR, exist_ok=True)
+    logger.info(f"Fallback to {SESSION_DIR}")
+
+
+def save_session(session_id: str, data: dict) -> bool:
+    """Save session to memory and file with atomic writes and verification"""
+    try:
+        # Always save to memory cache first
+        _memory_cache[session_id] = data
+        
+        # Then save to file for cross-worker persistence
+        path = os.path.join(SESSION_DIR, f"{session_id}.json")
+        # Write to temp file first, then rename (atomic write)
+        tmp_path = path + ".tmp"
+        with open(tmp_path, 'w') as f:
+            json.dump(data, f, default=str)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+        # Verify it was written
+        assert os.path.exists(path), f"File not found after write: {path}"
+        logger.info(f"Session saved: {session_id[:8]}... at {path}")
+        return True
+    except Exception as e:
+        logger.error(f"save_session FAILED for {session_id}: {e}")
+        # Memory cache is still valid as backup
+        return False
+
+
+def load_session(session_id: str) -> Optional[dict]:
+    """Load session from memory first, then file (for cross-worker hits)"""
+    try:
+        # Try memory first (same worker)
+        if session_id in _memory_cache:
+            logger.info(f"Session loaded from memory: {session_id[:8]}...")
+            return _memory_cache[session_id]
+        
+        # Try file (cross-worker)
+        path = os.path.join(SESSION_DIR, f"{session_id}.json")
+        if not os.path.exists(path):
+            # List what IS in the directory for debugging
+            if os.path.exists(SESSION_DIR):
+                files = os.listdir(SESSION_DIR)
+                session_files = [f for f in files if f.endswith('.json')]
+                logger.error(
+                    f"Session {session_id[:8]}... not found. "
+                    f"Dir has {len(session_files)} session files: {session_files[:5]}"
+                )
+            return None
+        
+        with open(path, 'r') as f:
+            data = json.load(f)
+        # Cache in memory for next access
+        _memory_cache[session_id] = data
+        logger.info(f"Session loaded from file: {session_id[:8]}...")
+        return data
+    except Exception as e:
+        logger.error(f"load_session FAILED for {session_id}: {e}")
+        return None
 
 
 class APEXEnvironment:
@@ -58,6 +148,10 @@ class APEXEnvironment:
         
         # Store session in memory
         self.sessions[session_id] = session_data
+        
+        # Save to dual-layer storage (memory + file)
+        saved = save_session(session_id, session_data)
+        logger.info(f"Reset: session={session_id[:8]}... domain={domain} difficulty={difficulty} saved={saved}")
         
         # Create observation
         observation = Observation(

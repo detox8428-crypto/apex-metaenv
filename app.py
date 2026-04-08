@@ -11,30 +11,9 @@ import json
 from typing import Optional
 
 from models import ResetRequest, ResetResponse, StepRequest, StepResponse, Observation
-from environment import APEXEnvironment
+from environment import APEXEnvironment, save_session, load_session
 
-# File-based session storage for multi-worker HF Spaces
-SESSION_DIR = "/tmp/apex_sessions"
-os.makedirs(SESSION_DIR, exist_ok=True)
-
-def _save_session(session_id: str, data: dict) -> None:
-    """Save session data to JSON file"""
-    path = os.path.join(SESSION_DIR, f"{session_id}.json")
-    with open(path, 'w') as f:
-        json.dump(data, f, default=str)
-
-def _load_session(session_id: str) -> Optional[dict]:
-    """Load session data from JSON file"""
-    path = os.path.join(SESSION_DIR, f"{session_id}.json")
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, 'r') as f:
-            return json.load(f)
-    except:
-        return None
-
-# Setup logging
+# Setup logging FIRST
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -110,19 +89,7 @@ async def reset_env(
             mode=mode
         )
         
-        # Save session to file for multi-worker persistence
-        _save_session(session_id, {
-            "session_id": session_id,
-            "domain": domain,
-            "difficulty": difficulty,
-            "mode": mode,
-            "step": 0,
-            "rewards": [],
-            "done": False,
-            "history": []
-        })
-        
-        logger.info(f"Reset: session={session_id[:8]}... domain={domain} difficulty={difficulty}")
+        logger.info(f"Reset endpoint: session={session_id[:8]}... domain={domain} difficulty={difficulty}")
         
         return {
             "session_id": session_id,
@@ -152,19 +119,7 @@ async def reset_env_json(request: ResetRequest):
             mode=request.mode
         )
         
-        # Save session to file for multi-worker persistence
-        _save_session(session_id, {
-            "session_id": session_id,
-            "domain": request.domain,
-            "difficulty": request.difficulty,
-            "mode": request.mode,
-            "step": 0,
-            "rewards": [],
-            "done": False,
-            "history": []
-        })
-        
-        logger.info(f"Reset: session={session_id[:8]}... domain={request.domain} difficulty={request.difficulty}")
+        logger.info(f"Reset/json endpoint: session={session_id[:8]}... domain={request.domain} difficulty={request.difficulty}")
         
         return {
             "session_id": session_id,
@@ -186,7 +141,7 @@ async def step_env(request: StepRequest):
     try:
         # For multi-worker HF Spaces: if session not in env.sessions, try to restore from file
         if request.session_id not in env.sessions:
-            session_file = _load_session(request.session_id)
+            session_file = load_session(request.session_id)
             if not session_file:
                 raise HTTPException(status_code=404, detail=f"Session {request.session_id} not found")
             # Session file exists, but we can't fully reconstruct the environment context
@@ -202,7 +157,7 @@ async def step_env(request: StepRequest):
         )
         
         # Update session file with new step data
-        session_data = _load_session(request.session_id)
+        session_data = load_session(request.session_id)
         if not session_data:
             session_data = {
                 "session_id": request.session_id,
@@ -225,7 +180,7 @@ async def step_env(request: StepRequest):
             "reward": reward,
             "feedback": info.get("feedback", "")
         })
-        _save_session(request.session_id, session_data)
+        save_session(request.session_id, session_data)
         
         logger.info(
             f"Step: session={request.session_id[:8]}... "
@@ -260,7 +215,7 @@ async def get_state(session_id: Optional[str] = Query(default=None)):
         raise HTTPException(status_code=400, detail="session_id parameter required")
     
     try:
-        session_data = _load_session(session_id)
+        session_data = load_session(session_id)
         if not session_data:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
         return session_data
@@ -279,7 +234,7 @@ async def get_state_path(session_id: str):
     GET /state/{session_id}
     """
     try:
-        session_data = _load_session(session_id)
+        session_data = load_session(session_id)
         if not session_data:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
         return session_data
