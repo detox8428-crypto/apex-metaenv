@@ -12,11 +12,11 @@ import requests
 from openai import OpenAI
 
 # ============================================================
-# ENV VARS
+# ENV VARS - NO FALLBACK DEFAULTS (validator injects these)
 # ============================================================
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+API_BASE_URL = os.environ["API_BASE_URL"]
+API_KEY = os.environ["API_KEY"]
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 
 # Local environment server
 LOCAL_ENV_URL = "http://localhost:8000"
@@ -46,7 +46,7 @@ def log_end(success, steps, score, rewards):
 
 client = OpenAI(
     base_url=API_BASE_URL,
-    api_key=API_KEY or "dummy"
+    api_key=API_KEY,
 )
 
 SYSTEM_PROMPT = """You are an expert Python engineer. 
