@@ -27,6 +27,7 @@ dependencies = [
 ]
 
 [project.scripts]
+server = "app:app"
 apex-code-solver = "server.app:main"
 
 [project.optional-dependencies]
@@ -41,3 +42,8 @@ Homepage = "https://ShaikB-apex-code-solver.hf.space"
 
 [tool.setuptools]
 packages = ["envs"]
+
+[tool.openenv]
+name = "apex-engineering-benchmark"
+version = "3.0.0"
+spec = "openenv/v1"
