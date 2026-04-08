@@ -90,10 +90,19 @@ async def get_progress(session_id: str):
 async def root():
     """Root endpoint with service info"""
     return {
-        "service": "APEX Data Pipeline Engineer",
+        "service": "APEX Engineering Benchmark",
         "version": "3.0.0",
         "spec": "openenv/v1",
-        "contact": "Team APEX"
+        "status": "running",
+        "endpoints": {
+            "reset": "POST /reset",
+            "step": "POST /step",
+            "state": "GET /state",
+            "health": "GET /health",
+            "docs": "GET /docs"
+        },
+        "domains": ["data_pipeline", "code_review", "incident_debug"],
+        "tasks": 29
     }
 
 
