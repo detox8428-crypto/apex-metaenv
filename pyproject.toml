@@ -27,8 +27,7 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "app:app"
-apex-code-solver = "server.app:main"
+server = "app:main"
 
 [project.optional-dependencies]
 dev = [

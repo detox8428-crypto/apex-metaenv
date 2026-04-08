@@ -283,6 +283,18 @@ async def startup_event():
     logger.info("=" * 70)
 
 
+
+# ============================================================================
+# ENTRY POINT FOR SCRIPT
+# ============================================================================
+
+def main():
+    """Entry point for running the server as a callable from entry points."""
+    import uvicorn
+    port = int(os.environ.get("PORT", 7860))
+    uvicorn.run("app:app", host="0.0.0.0", port=port, workers=1)
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 7860))
