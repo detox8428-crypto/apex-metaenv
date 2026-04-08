@@ -4,51 +4,22 @@ Manages sessions, resets, and steps
 """
 
 import uuid
-import json
-import os
-from typing import Dict, Tuple, Any, Optional
+from typing import Dict, Tuple, Any
 from models import Observation, RewardInfo
 from tasks import get_task, TASKS
 from graders import DataPipelineGrader, CodeReviewGrader, IncidentDebugGrader
-
-
-# File-based session storage to support multiple workers on HF Spaces
-SESSION_DIR = "/tmp/apex_sessions"
-os.makedirs(SESSION_DIR, exist_ok=True)
 
 
 class APEXEnvironment:
     """Core APEX environment - manages sessions and episodes"""
     
     def __init__(self):
+        self.sessions: Dict[str, Dict[str, Any]] = {}
         self.graders = {
             "data_pipeline": DataPipelineGrader(),
             "code_review": CodeReviewGrader(),
             "incident_debug": IncidentDebugGrader(),
         }
-    
-    def _save_session(self, session_id: str, data: Dict[str, Any]) -> None:
-        """Save session data to JSON file"""
-        path = os.path.join(SESSION_DIR, f"{session_id}.json")
-        with open(path, 'w') as f:
-            json.dump(data, f, default=str)
-    
-    def _load_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        """Load session data from JSON file"""
-        path = os.path.join(SESSION_DIR, f"{session_id}.json")
-        if not os.path.exists(path):
-            return None
-        try:
-            with open(path, 'r') as f:
-                return json.load(f)
-        except Exception:
-            return None
-    
-    def _delete_session(self, session_id: str) -> None:
-        """Delete session file"""
-        path = os.path.join(SESSION_DIR, f"{session_id}.json")
-        if os.path.exists(path):
-            os.remove(path)
     
     def reset(self, domain: str, difficulty: str, mode: str = "solve") -> Tuple[str, Observation]:
         """
@@ -85,8 +56,8 @@ class APEXEnvironment:
             "history": []
         }
         
-        # Save session to file
-        self._save_session(session_id, session_data)
+        # Store session in memory
+        self.sessions[session_id] = session_data
         
         # Create observation
         observation = Observation(
@@ -117,11 +88,10 @@ class APEXEnvironment:
         Returns:
             (observation, reward, done, info)
         """
-        # Load session from file
-        session = self._load_session(session_id)
-        if not session:
+        if session_id not in self.sessions:
             raise ValueError(f"Session {session_id} not found")
         
+        session = self.sessions[session_id]
         task = session["task"]
         domain = session["domain"]
         step_num = session["step"] + 1
@@ -171,9 +141,6 @@ class APEXEnvironment:
             "feedback": reward_info.feedback
         })
         
-        # Save session back to file
-        self._save_session(session_id, session)
-        
         # Update observation with step info
         obs = reward_info.observation
         obs.session_id = session_id
@@ -202,10 +169,10 @@ class APEXEnvironment:
     
     def state(self, session_id: str) -> Dict[str, Any]:
         """Get current session state"""
-        session = self._load_session(session_id)
-        if not session:
+        if session_id not in self.sessions:
             raise ValueError(f"Session {session_id} not found")
         
+        session = self.sessions[session_id]
         task = session.get("task", {})
         
         return {
@@ -222,4 +189,5 @@ class APEXEnvironment:
     
     def close_session(self, session_id: str) -> None:
         """Close a session"""
-        self._delete_session(session_id)
+        if session_id in self.sessions:
+            del self.sessions[session_id]

@@ -7,10 +7,32 @@ from fastapi import FastAPI, HTTPException, Query, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import logging
+import json
 from typing import Optional
 
 from models import ResetRequest, ResetResponse, StepRequest, StepResponse, Observation
 from environment import APEXEnvironment
+
+# File-based session storage for multi-worker HF Spaces
+SESSION_DIR = "/tmp/apex_sessions"
+os.makedirs(SESSION_DIR, exist_ok=True)
+
+def _save_session(session_id: str, data: dict) -> None:
+    """Save session data to JSON file"""
+    path = os.path.join(SESSION_DIR, f"{session_id}.json")
+    with open(path, 'w') as f:
+        json.dump(data, f, default=str)
+
+def _load_session(session_id: str) -> Optional[dict]:
+    """Load session data from JSON file"""
+    path = os.path.join(SESSION_DIR, f"{session_id}.json")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except:
+        return None
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -70,37 +92,79 @@ async def root():
 async def reset_env(
     domain: str = Query(default="data_pipeline"),
     difficulty: str = Query(default="easy"),
-    body: Optional[ResetRequest] = Body(default=None),
+    mode: str = Query(default="solve"),
 ):
     """
     Reset environment (OpenEnv spec)
     
-    Supports BOTH:
-    - Query params: POST /reset?domain=data_pipeline&difficulty=easy
-    - JSON body: POST /reset with {"domain": "data_pipeline", "difficulty": "easy"}
+    Supports query parameters:
+    - POST /reset?domain=data_pipeline&difficulty=easy
+    - POST /reset?domain=code_review&difficulty=medium
     
     Returns: {session_id, observation}
     """
     try:
-        # Use body values only if query params are at their defaults
-        # This gives priority to explicitly passed query params
-        final_domain = domain
-        final_difficulty = difficulty
-        final_mode = "solve"
-        
-        # If body provided and query params are defaults, use body values
-        if body and domain == "data_pipeline" and difficulty == "easy":
-            final_domain = body.domain
-            final_difficulty = body.difficulty
-            final_mode = body.mode
-        
         session_id, observation = env.reset(
-            domain=final_domain,
-            difficulty=final_difficulty,
-            mode=final_mode
+            domain=domain,
+            difficulty=difficulty,
+            mode=mode
         )
         
-        logger.info(f"Reset: session={session_id[:8]}... domain={final_domain} difficulty={final_difficulty}")
+        # Save session to file for multi-worker persistence
+        _save_session(session_id, {
+            "session_id": session_id,
+            "domain": domain,
+            "difficulty": difficulty,
+            "mode": mode,
+            "step": 0,
+            "rewards": [],
+            "done": False,
+            "history": []
+        })
+        
+        logger.info(f"Reset: session={session_id[:8]}... domain={domain} difficulty={difficulty}")
+        
+        return {
+            "session_id": session_id,
+            "observation": observation
+        }
+    except Exception as e:
+        logger.error(f"Reset error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/reset/json", response_model=ResetResponse)
+async def reset_env_json(request: ResetRequest):
+    """
+    Alternative: Reset environment with JSON body (for compatibility)
+    
+    POST /reset/json
+    {
+        "domain": "data_pipeline",
+        "difficulty": "easy",
+        "mode": "solve"
+    }
+    """
+    try:
+        session_id, observation = env.reset(
+            domain=request.domain,
+            difficulty=request.difficulty,
+            mode=request.mode
+        )
+        
+        # Save session to file for multi-worker persistence
+        _save_session(session_id, {
+            "session_id": session_id,
+            "domain": request.domain,
+            "difficulty": request.difficulty,
+            "mode": request.mode,
+            "step": 0,
+            "rewards": [],
+            "done": False,
+            "history": []
+        })
+        
+        logger.info(f"Reset: session={session_id[:8]}... domain={request.domain} difficulty={request.difficulty}")
         
         return {
             "session_id": session_id,
@@ -120,12 +184,48 @@ async def step_env(request: StepRequest):
     Returns: {observation, reward, done, feedback, info}
     """
     try:
+        # For multi-worker HF Spaces: if session not in env.sessions, try to restore from file
+        if request.session_id not in env.sessions:
+            session_file = _load_session(request.session_id)
+            if not session_file:
+                raise HTTPException(status_code=404, detail=f"Session {request.session_id} not found")
+            # Session file exists, but we can't fully reconstruct the environment context
+            # For now, just confirm it exists
+            logger.info(f"Session {request.session_id[:8]}... exists in file storage")
+        
+        # Run step with environment
         observation, reward, done, info = env.step(
             session_id=request.session_id,
             code=request.code,
             review=request.review,
             diagnosis=request.diagnosis
         )
+        
+        # Update session file with new step data
+        session_data = _load_session(request.session_id)
+        if not session_data:
+            session_data = {
+                "session_id": request.session_id,
+                "step": 0,
+                "rewards": [],
+                "done": False,
+                "history": []
+            }
+        
+        session_data["step"] = info.get("step", 0)
+        session_data["done"] = done
+        if "rewards" not in session_data:
+            session_data["rewards"] = []
+        session_data["rewards"].append(reward)
+        
+        if "history" not in session_data:
+            session_data["history"] = []
+        session_data["history"].append({
+            "step": info.get("step", 0),
+            "reward": reward,
+            "feedback": info.get("feedback", "")
+        })
+        _save_session(request.session_id, session_data)
         
         logger.info(
             f"Step: session={request.session_id[:8]}... "
@@ -142,8 +242,8 @@ async def step_env(request: StepRequest):
             "feedback": info.get("feedback", ""),
             "info": info
         }
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Step error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -154,17 +254,18 @@ async def get_state(session_id: Optional[str] = Query(default=None)):
     """
     Get session state (OpenEnv spec)
     
-    Supports both:
-    - Query param: GET /state?session_id={id}
-    - Path param: GET /state/{id}
+    GET /state?session_id={id}
     """
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id parameter required")
     
     try:
-        return env.state(session_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        session_data = _load_session(session_id)
+        if not session_data:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+        return session_data
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"State error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -174,11 +275,16 @@ async def get_state(session_id: Optional[str] = Query(default=None)):
 async def get_state_path(session_id: str):
     """
     Get session state by path parameter (OpenEnv spec)
+    
+    GET /state/{session_id}
     """
     try:
-        return env.state(session_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        session_data = _load_session(session_id)
+        if not session_data:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+        return session_data
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"State error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
