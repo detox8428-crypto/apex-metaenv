@@ -44,59 +44,98 @@ except Exception as e:
 
 
 def save_session(session_id: str, data: dict) -> bool:
-    """Save session to memory and file with atomic writes and verification"""
+    """Save session to memory and file with aggressive synchronization"""
     try:
-        # Always save to memory cache first
+        # Always save to memory cache first (primary)
         _memory_cache[session_id] = data
+        logger.info(f"[SAVE] Memory cache: {session_id[:8]}... saved")
         
         # Then save to file for cross-worker persistence
         path = os.path.join(SESSION_DIR, f"{session_id}.json")
+        
         # Write to temp file first, then rename (atomic write)
         tmp_path = path + ".tmp"
+        
+        # Delete existing tmp if it exists (cleanup)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        
+        # Write with full flush
         with open(tmp_path, 'w') as f:
             json.dump(data, f, default=str)
             f.flush()
             os.fsync(f.fileno())
+        
+        # Atomic rename
         os.replace(tmp_path, path)
+        
+        # CRITICAL: Force directory sync (fsync the directory itself)
+        try:
+            dir_fd = os.open(SESSION_DIR, os.O_RDONLY)
+            os.fsync(dir_fd)
+            os.close(dir_fd)
+        except:
+            pass  # Best effort
+        
         # Verify it was written
-        assert os.path.exists(path), f"File not found after write: {path}"
-        logger.info(f"Session saved: {session_id[:8]}... at {path}")
+        if not os.path.exists(path):
+            logger.error(f"[SAVE] CRITICAL: File vanished after write: {path}")
+            return False
+        
+        # Verify file size is non-zero
+        file_size = os.path.getsize(path)
+        if file_size == 0:
+            logger.error(f"[SAVE] CRITICAL: File is empty: {path}")
+            return False
+        
+        logger.info(f"[SAVE] File: {session_id[:8]}... -> {path} ({file_size} bytes)")
         return True
     except Exception as e:
-        logger.error(f"save_session FAILED for {session_id}: {e}")
+        logger.error(f"[SAVE] FAILED for {session_id}: {e}", exc_info=True)
         # Memory cache is still valid as backup
         return False
 
 
 def load_session(session_id: str) -> Optional[dict]:
-    """Load session from memory first, then file (for cross-worker hits)"""
+    """Load session from memory first, then file (with extensive logging)"""
     try:
         # Try memory first (same worker)
         if session_id in _memory_cache:
-            logger.info(f"Session loaded from memory: {session_id[:8]}...")
+            logger.info(f"[LOAD] Memory cache HIT: {session_id[:8]}...")
             return _memory_cache[session_id]
+        
+        logger.debug(f"[LOAD] Memory cache MISS, trying file...")
         
         # Try file (cross-worker)
         path = os.path.join(SESSION_DIR, f"{session_id}.json")
+        
         if not os.path.exists(path):
-            # List what IS in the directory for debugging
+            # Detailed debug info
             if os.path.exists(SESSION_DIR):
-                files = os.listdir(SESSION_DIR)
-                session_files = [f for f in files if f.endswith('.json')]
-                logger.error(
-                    f"Session {session_id[:8]}... not found. "
-                    f"Dir has {len(session_files)} session files: {session_files[:5]}"
-                )
+                try:
+                    files = os.listdir(SESSION_DIR)
+                    session_files = [f for f in files if f.endswith('.json')]
+                    logger.error(
+                        f"[LOAD] File {path} NOT FOUND. "
+                        f"DIR has {len(session_files)} sessions: {session_files[:3]}"
+                    )
+                except Exception as e:
+                    logger.error(f"[LOAD] Error listing directory: {e}")
+            else:
+                logger.error(f"[LOAD] SESSION_DIR doesn't exist: {SESSION_DIR}")
             return None
         
+        # File exists, load it
+        logger.info(f"[LOAD] File found: {path}")
         with open(path, 'r') as f:
             data = json.load(f)
+        
         # Cache in memory for next access
         _memory_cache[session_id] = data
-        logger.info(f"Session loaded from file: {session_id[:8]}...")
+        logger.info(f"[LOAD] File HIT: {session_id[:8]}... loaded and cached")
         return data
     except Exception as e:
-        logger.error(f"load_session FAILED for {session_id}: {e}")
+        logger.error(f"[LOAD] FAILED for {session_id}: {e}", exc_info=True)
         return None
 
 
