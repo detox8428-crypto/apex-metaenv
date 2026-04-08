@@ -1,23 +1,31 @@
 """
 APEX Engineering Benchmark - FastAPI Server
 Implements OpenEnv v1 specification
+Single worker mode for reliable session management
 """
 
-from fastapi import FastAPI, HTTPException, Query, Body, Request
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import logging
-import json
 from typing import Optional
 
-from models import ResetRequest, ResetResponse, StepRequest, StepResponse, Observation
-from environment import APEXEnvironment, save_session, load_session
+from models import ResetRequest, ResetResponse, StepRequest, StepResponse
+from environment import APEXEnvironment
 
-# Setup logging FIRST
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app
+# ============================================================================
+# MODULE-LEVEL SESSION STORAGE (Single worker = always same process)
+# ============================================================================
+
+SESSIONS = {}  # Global dict - reliable with --workers 1
+
+# ============================================================================
+# FASTAPI APP SETUP
+# ============================================================================
+
 app = FastAPI(
     title="APEX Engineering Benchmark",
     description="Real-world RL environment for data pipelines, code review, and incident debugging",
@@ -34,23 +42,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create global environment instance
+# Create environment
 env = APEXEnvironment()
 
 
 # ============================================================================
-# HEALTH CHECK
+# ENDPOINTS
 # ============================================================================
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "ok",
-        "version": "3.0.0",
-        "active_sessions": len(env.sessions)
-    }
-
 
 @app.get("/")
 async def root():
@@ -58,20 +56,37 @@ async def root():
     return {
         "service": "APEX Engineering Benchmark",
         "version": "3.0.0",
-        "api_docs": "/docs",
-        "endpoints": ["/reset", "/step", "/state", "/health"]
+        "spec": "openenv/v1",
+        "status": "running",
+        "endpoints": {
+            "reset": "POST /reset",
+            "step": "POST /step",
+            "state": "GET /state",
+            "health": "GET /health",
+            "docs": "GET /docs"
+        },
+        "domains": ["data_pipeline", "code_review", "incident_debug"],
+        "tasks": 29
     }
 
 
-# ============================================================================
-# OPENENV SPEC ENDPOINTS
-# ============================================================================
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "ok",
+        "version": "3.0.0",
+        "workers": 1,
+        "active_sessions": len(SESSIONS)
+    }
+
 
 @app.post("/reset", response_model=ResetResponse)
 async def reset_env(
     domain: str = Query(default="data_pipeline"),
     difficulty: str = Query(default="easy"),
     mode: str = Query(default="solve"),
+    body: Optional[ResetRequest] = None
 ):
     """
     Reset environment (OpenEnv spec)
@@ -80,16 +95,31 @@ async def reset_env(
     - POST /reset?domain=data_pipeline&difficulty=easy
     - POST /reset?domain=code_review&difficulty=medium
     
-    Returns: {session_id, observation}
+    Also accepts JSON body for flexibility
     """
     try:
-        session_id, observation = env.reset(
-            domain=domain,
-            difficulty=difficulty,
-            mode=mode
-        )
+        # Accept both query params and JSON body
+        d = domain
+        diff = difficulty
+        if body:
+            d = body.domain or domain
+            diff = body.difficulty or difficulty
         
-        logger.info(f"Reset endpoint: session={session_id[:8]}... domain={domain} difficulty={difficulty}")
+        # Reset environment
+        session_id, observation = env.reset(domain=d, difficulty=diff, mode=mode)
+        
+        # SAVE TO GLOBAL SESSIONS DICT (single worker = always same process)
+        SESSIONS[session_id] = {
+            "session_id": session_id,
+            "domain": d,
+            "difficulty": diff,
+            "step": 0,
+            "rewards": [],
+            "done": False,
+            "observation": observation if isinstance(observation, dict) else (observation.dict() if hasattr(observation, 'dict') else str(observation))
+        }
+        
+        logger.info(f"Reset: session={session_id[:8]}... domain={d} difficulty={diff} total_sessions={len(SESSIONS)}")
         
         return {
             "session_id": session_id,
@@ -103,7 +133,7 @@ async def reset_env(
 @app.post("/reset/json", response_model=ResetResponse)
 async def reset_env_json(request: ResetRequest):
     """
-    Alternative: Reset environment with JSON body (for compatibility)
+    Alternative: Reset with JSON body
     
     POST /reset/json
     {
@@ -119,7 +149,18 @@ async def reset_env_json(request: ResetRequest):
             mode=request.mode
         )
         
-        logger.info(f"Reset/json endpoint: session={session_id[:8]}... domain={request.domain} difficulty={request.difficulty}")
+        # SAVE TO GLOBAL SESSIONS DICT
+        SESSIONS[session_id] = {
+            "session_id": session_id,
+            "domain": request.domain,
+            "difficulty": request.difficulty,
+            "step": 0,
+            "rewards": [],
+            "done": False,
+            "observation": observation if isinstance(observation, dict) else (observation.dict() if hasattr(observation, 'dict') else str(observation))
+        }
+        
+        logger.info(f"Reset/json: session={session_id[:8]}... domain={request.domain} difficulty={request.difficulty}")
         
         return {
             "session_id": session_id,
@@ -138,57 +179,35 @@ async def step_env(request: StepRequest):
     Submit: {session_id, code/review/diagnosis}
     Returns: {observation, reward, done, feedback, info}
     """
+    session_id = request.session_id
+    
+    # CHECK GLOBAL SESSIONS DICT
+    if session_id not in SESSIONS:
+        available = list(SESSIONS.keys())[:3]
+        logger.error(f"Session not found: {session_id[:8]}... Available: {available}")
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    
     try:
-        # For multi-worker HF Spaces: if session not in env.sessions, try to restore from file
-        if request.session_id not in env.sessions:
-            session_file = load_session(request.session_id)
-            if not session_file:
-                raise HTTPException(status_code=404, detail=f"Session {request.session_id} not found")
-            # Session file exists, but we can't fully reconstruct the environment context
-            # For now, just confirm it exists
-            logger.info(f"Session {request.session_id[:8]}... exists in file storage")
-        
-        # Run step with environment
+        # Run step
         observation, reward, done, info = env.step(
-            session_id=request.session_id,
+            session_id=session_id,
             code=request.code,
             review=request.review,
             diagnosis=request.diagnosis
         )
         
-        # Update session file with new step data
-        session_data = load_session(request.session_id)
-        if not session_data:
-            session_data = {
-                "session_id": request.session_id,
-                "step": 0,
-                "rewards": [],
-                "done": False,
-                "history": []
-            }
-        
-        session_data["step"] = info.get("step", 0)
-        session_data["done"] = done
-        if "rewards" not in session_data:
-            session_data["rewards"] = []
-        session_data["rewards"].append(reward)
-        
-        if "history" not in session_data:
-            session_data["history"] = []
-        session_data["history"].append({
-            "step": info.get("step", 0),
-            "reward": reward,
-            "feedback": info.get("feedback", "")
-        })
-        save_session(request.session_id, session_data)
+        # UPDATE GLOBAL SESSIONS DICT
+        SESSIONS[session_id]["step"] = info.get("step", 0)
+        SESSIONS[session_id]["done"] = done
+        SESSIONS[session_id]["rewards"].append(reward)
         
         logger.info(
-            f"Step: session={request.session_id[:8]}... "
+            f"Step: session={session_id[:8]}... "
             f"step={info.get('step')} reward={reward:.2f} done={done}"
         )
         
         return {
-            "session_id": request.session_id,
+            "session_id": session_id,
             "observation": observation,
             "reward": reward,
             "done": done,
@@ -205,22 +224,20 @@ async def step_env(request: StepRequest):
 
 
 @app.get("/state")
-async def get_state(session_id: Optional[str] = Query(default=None)):
+async def get_state(session_id: str = Query(...)):
     """
     Get session state (OpenEnv spec)
     
     GET /state?session_id={id}
     """
-    if not session_id:
-        raise HTTPException(status_code=400, detail="session_id parameter required")
+    # LOAD FROM GLOBAL SESSIONS DICT
+    if session_id not in SESSIONS:
+        available = list(SESSIONS.keys())[:3]
+        logger.error(f"State 404: {session_id[:8]}... not found. Available: {available} (total={len(SESSIONS)})")
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     
     try:
-        session_data = load_session(session_id)
-        if not session_data:
-            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
-        return session_data
-    except HTTPException:
-        raise
+        return SESSIONS[session_id]
     except Exception as e:
         logger.error(f"State error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -233,38 +250,40 @@ async def get_state_path(session_id: str):
     
     GET /state/{session_id}
     """
+    # LOAD FROM GLOBAL SESSIONS DICT
+    if session_id not in SESSIONS:
+        available = list(SESSIONS.keys())[:3]
+        logger.error(f"State 404: {session_id[:8]}... not found. Available: {available} (total={len(SESSIONS)})")
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    
     try:
-        session_data = load_session(session_id)
-        if not session_data:
-            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
-        return session_data
-    except HTTPException:
-        raise
+        return SESSIONS[session_id]
     except Exception as e:
         logger.error(f"State error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================
-# STARTUP LOGGING
+# STARTUP
 # ============================================================================
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("=" * 60)
+    logger.info("=" * 70)
     logger.info("APEX Engineering Benchmark - FastAPI Server")
     logger.info("Version: 3.0.0 (OpenEnv v1 Compliant)")
-    logger.info("=" * 60)
+    logger.info("Mode: Single Worker (--workers 1)")
+    logger.info("=" * 70)
     logger.info("Endpoints:")
     logger.info("  POST /reset  - Start new episode")
     logger.info("  POST /step   - Submit action (code/review/diagnosis)")
     logger.info("  GET  /state  - Get session state")
     logger.info("  GET  /health - Health check")
     logger.info("  GET  /docs   - API documentation")
-    logger.info("=" * 60)
+    logger.info("=" * 70)
 
 
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 7860))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port, workers=1)
