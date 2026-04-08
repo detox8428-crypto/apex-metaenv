@@ -3,10 +3,11 @@ APEX Engineering Benchmark - FastAPI Server
 Implements OpenEnv v1 specification
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import logging
+from typing import Optional
 
 from models import ResetRequest, ResetResponse, StepRequest, StepResponse, Observation
 from environment import APEXEnvironment
@@ -66,20 +67,33 @@ async def root():
 # ============================================================================
 
 @app.post("/reset", response_model=ResetResponse)
-async def reset_env(request: ResetRequest):
+async def reset_env(
+    domain: Optional[str] = Query(default=None, description="data_pipeline, code_review, or incident_debug"),
+    difficulty: Optional[str] = Query(default=None, description="easy, medium, or hard"),
+    body: Optional[ResetRequest] = Body(default=None)
+):
     """
     Reset environment (OpenEnv spec)
+    
+    Supports both:
+    - Query params: POST /reset?domain=data_pipeline&difficulty=easy
+    - JSON body: POST /reset with {"domain": "data_pipeline", "difficulty": "easy"}
     
     Returns: {session_id, observation}
     """
     try:
+        # Merge query params and body - query params take precedence
+        final_domain = domain or (body.domain if body else None) or "data_pipeline"
+        final_difficulty = difficulty or (body.difficulty if body else None) or "easy"
+        final_mode = body.mode if body else "solve"
+        
         session_id, observation = env.reset(
-            domain=request.domain,
-            difficulty=request.difficulty,
-            mode=request.mode
+            domain=final_domain,
+            difficulty=final_difficulty,
+            mode=final_mode
         )
         
-        logger.info(f"Reset: session={session_id[:8]}... domain={request.domain} difficulty={request.difficulty}")
+        logger.info(f"Reset: session={session_id[:8]}... domain={final_domain} difficulty={final_difficulty}")
         
         return {
             "session_id": session_id,
@@ -99,9 +113,6 @@ async def step_env(request: StepRequest):
     Returns: {observation, reward, done, feedback, info}
     """
     try:
-        if request.session_id not in env.sessions:
-            raise HTTPException(status_code=404, detail=f"Session {request.session_id} not found")
-        
         observation, reward, done, info = env.step(
             session_id=request.session_id,
             code=request.code,
@@ -124,25 +135,43 @@ async def step_env(request: StepRequest):
             "feedback": info.get("feedback", ""),
             "info": info
         }
-    except HTTPException:
-        raise
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Step error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/state/{session_id}")
-async def get_state(session_id: str):
+@app.get("/state")
+async def get_state(session_id: Optional[str] = Query(default=None)):
     """
     Get session state (OpenEnv spec)
+    
+    Supports both:
+    - Query param: GET /state?session_id={id}
+    - Path param: GET /state/{id}
+    """
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id parameter required")
+    
+    try:
+        return env.state(session_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"State error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/state/{session_id}")
+async def get_state_path(session_id: str):
+    """
+    Get session state by path parameter (OpenEnv spec)
     """
     try:
-        if session_id not in env.sessions:
-            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
-        
         return env.state(session_id)
-    except HTTPException:
-        raise
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"State error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

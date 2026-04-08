@@ -27,7 +27,7 @@ class DataPipelineGrader:
         """
         if not code or len(code.strip()) < 5:
             return self._make_reward(
-                reward=0.0,
+                reward=0.1,
                 done=False,
                 passed=0,
                 total=len(task.get("test_cases", [])),
@@ -51,10 +51,10 @@ class DataPipelineGrader:
             exec(code, global_vars, local_vars)
             
             # Get function from locals
-            func_name = task.get("function_name", "process")
+            func_name = task.get("function_name", "solve")
             if func_name not in local_vars:
                 return self._make_reward(
-                    reward=0.1,
+                    reward=0.15,
                     done=False,
                     passed=0,
                     total=total_cases,
@@ -63,6 +63,17 @@ class DataPipelineGrader:
                 )
             
             func = local_vars[func_name]
+            
+            # Validate function is callable
+            if not callable(func):
+                return self._make_reward(
+                    reward=0.15,
+                    done=False,
+                    passed=0,
+                    total=total_cases,
+                    feedback=f"'{func_name}' is not callable",
+                    task=task
+                )
             
             # Run test cases
             for test_case in task.get("test_cases", []):
@@ -88,7 +99,7 @@ class DataPipelineGrader:
         
         except SyntaxError as e:
             return self._make_reward(
-                reward=0.05,
+                reward=0.1,
                 done=False,
                 passed=0,
                 total=total_cases,
@@ -98,7 +109,7 @@ class DataPipelineGrader:
         except Exception as e:
             # Execution error
             return self._make_reward(
-                reward=0.1,
+                reward=0.15,
                 done=False,
                 passed=0,
                 total=total_cases,
@@ -106,19 +117,43 @@ class DataPipelineGrader:
                 task=task
             )
         
-        # Calculate reward
-        base_reward = passed_cases / total_cases if total_cases > 0 else 0.0
+        # Calculate reward with strict bounds
+        if passed_cases == 0:
+            # No test cases passed - low reward floor
+            base_reward = 0.1
+        elif passed_cases < total_cases:
+            # Partial credit - between 0.3 and 0.8
+            base_reward = 0.3 + (0.5 * (passed_cases / total_cases))
+        else:
+            # All test cases passed - can earn bonus
+            base_reward = 0.85
         
-        # Bonus for efficient code
+        # Bonus for efficient code (only if passing most tests)
         efficiency_bonus = 0.0
-        if passed_cases == total_cases:
+        if passed_cases >= total_cases * 0.8:
             # Full points: check code quality
             if "groupby" in code and ("sum" in code or "agg" in code):
-                efficiency_bonus = 0.1
+                efficiency_bonus = 0.10
             elif "apply" in code and "lambda" in code:
                 efficiency_bonus = 0.05
         
-        final_reward = min(1.0, base_reward + efficiency_bonus)
+        # Final reward with strict capping
+        final_reward = base_reward + efficiency_bonus
+        
+        # Caps:
+        # - Perfect code (all tests pass + bonus) = 1.0
+        # - Very good code (all tests + small bonus) = 0.95
+        # - Good code (all tests) = 0.85
+        # - Partial = 0.3-0.8
+        # - Bad/error = 0.1-0.15
+        
+        if passed_cases == total_cases and efficiency_bonus > 0.05:
+            final_reward = 1.0  # Perfect!
+        elif passed_cases == total_cases:
+            final_reward = 0.95  # Very good
+        else:
+            final_reward = min(0.8, final_reward)  # Cap partial solutions at 0.8
+        
         done = passed_cases == total_cases
         
         feedback = f"Passed {passed_cases}/{total_cases} test cases"
@@ -199,7 +234,7 @@ class CodeReviewGrader:
         - Production keywords mentioned (60%)
         - Technical quality (40%)
         """
-        if not review_text or len(review_text.strip()) < 10:
+        if not review_text or len(review_text.strip()) < 20:
             return self._make_reward(
                 reward=0.2,
                 done=True,
@@ -225,13 +260,18 @@ class CodeReviewGrader:
         ]
         tech_score = len(tech_keywords_found) / max(len(expected_tech_kw), 1)
         
-        # Weighted combination
-        final_reward = (prod_score * 0.6) + (tech_score * 0.4)
-        final_reward = max(0.0, min(1.0, final_reward))
+        # Weighted combination with floor
+        base_reward = (prod_score * 0.6) + (tech_score * 0.4)
+        base_reward = max(0.25, min(1.0, base_reward))  # Floor at 0.25 for any review with keywords
         
         # Boost if comprehensive
+        final_reward = base_reward
         if len(review_text) > 200 and prod_keywords_found and tech_keywords_found:
             final_reward = min(1.0, final_reward + 0.15)
+        
+        # Cap at 0.95 unless perfect
+        if final_reward < 1.0:
+            final_reward = min(0.95, final_reward)
         
         feedback = f"Production impact: {len(prod_keywords_found)}/{len(expected_prod_kw)} | "
         feedback += f"Technical: {len(tech_keywords_found)}/{len(expected_tech_kw)}"
@@ -283,12 +323,12 @@ class IncidentDebugGrader:
         
         if not diagnosis_text or len(diagnosis_text.strip()) < 5:
             return self._make_reward(
-                reward=0.1,
+                reward=0.15,
                 done=False,
                 step_num=step_num,
                 feedback="Diagnosis too short",
                 task=task,
-                step_scores=[0.0]
+                step_scores=[0.15]
             )
         
         diagnosis_lower = diagnosis_text.lower()
@@ -307,8 +347,14 @@ class IncidentDebugGrader:
             if kw.lower() in diagnosis_lower
         ]
         
-        step_reward = len(keywords_found) / max(len(expected_kw), 1) if expected_kw else 0.3
-        step_reward = max(0.0, min(1.0, step_reward))
+        if expected_kw:
+            step_reward = len(keywords_found) / len(expected_kw)
+        else:
+            step_reward = 0.3
+        
+        # Ensure minimum floor
+        step_reward = max(0.15, step_reward)
+        step_reward = min(1.0, step_reward)
         
         # Boost if comprehensive
         if len(diagnosis_text) > 100 and len(keywords_found) > len(expected_kw) / 2:
@@ -321,6 +367,9 @@ class IncidentDebugGrader:
         # Calculate cumulative reward
         all_scores = previous_scores + [step_reward]
         cumulative_reward = sum(all_scores) / len(all_scores) if all_scores else step_reward
+        
+        # Ensure reward bounds
+        cumulative_reward = max(0.15, min(1.0, cumulative_reward))
         
         feedback = f"Step {step_num}/{len(steps)}: {len(keywords_found)}/{len(expected_kw)} keywords matched"
         
