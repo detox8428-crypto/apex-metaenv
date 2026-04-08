@@ -7,6 +7,8 @@ import uuid
 import json
 import os
 import logging
+import sqlite3
+import threading
 from typing import Dict, Tuple, Any, Optional
 from models import Observation, RewardInfo
 from tasks import get_task, TASKS
@@ -17,33 +19,47 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# SESSION STORAGE - HYBRID (MEMORY + FILE)
+# SESSION STORAGE - SQLite (for multi-worker HF Spaces compatibility)
 # ============================================================================
 
-# Global memory cache (fast, within same worker)
-_memory_cache = {}
+DB_PATH = "/tmp/apex_sessions.db"
+_db_lock = threading.Lock()
 
-# File storage directory (for cross-worker sharing within same container)
-SESSION_DIR = "./sessions"
+
+def _get_db():
+    """Get SQLite connection and ensure table exists"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_id TEXT PRIMARY KEY,
+            data TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    return conn
+
+
+# Initialize DB on startup
 try:
-    os.makedirs(SESSION_DIR, exist_ok=True)
-    logger.info(f"✅ File storage at {SESSION_DIR}")
+    _get_db().close()
+    logger.info(f"✅ SQLite session storage ready at {DB_PATH}")
 except Exception as e:
-    logger.error(f"❌ Cannot create sessions dir: {e}")
+    logger.error(f"❌ Failed to initialize SQLite: {e}")
 
 
 def save_session(session_id: str, data: dict) -> bool:
-    """Save session to memory AND file (for multi-worker persistence)"""
+    """Save session to SQLite (shared across all workers)"""
     try:
-        # Always save to memory first
-        _memory_cache[session_id] = data
-        
-        # Also save to file for cross-worker requests
-        path = os.path.join(SESSION_DIR, f"{session_id}.json")
-        with open(path, 'w') as f:
-            json.dump(data, f, default=str, indent=2)
-        
-        logger.info(f"Session saved: {session_id[:8]}... (memory + file)")
+        with _db_lock:
+            conn = _get_db()
+            conn.execute(
+                "INSERT OR REPLACE INTO sessions (session_id, data) VALUES (?, ?)",
+                (session_id, json.dumps(data, default=str))
+            )
+            conn.commit()
+            conn.close()
+        logger.debug(f"Session saved to SQLite: {session_id[:8]}...")
         return True
     except Exception as e:
         logger.error(f"save_session failed: {e}")
@@ -51,28 +67,40 @@ def save_session(session_id: str, data: dict) -> bool:
 
 
 def load_session(session_id: str) -> Optional[dict]:
-    """Load session from memory first, then file"""
+    """Load session from SQLite"""
     try:
-        # Priority 1: Memory (same worker, fastest)
-        if session_id in _memory_cache:
-            logger.debug(f"Session from memory: {session_id[:8]}...")
-            return _memory_cache[session_id]
+        conn = _get_db()
+        row = conn.execute(
+            "SELECT data FROM sessions WHERE session_id = ?",
+            (session_id,)
+        ).fetchone()
+        conn.close()
         
-        # Priority 2: File (cross-worker)
-        path = os.path.join(SESSION_DIR, f"{session_id}.json")
-        if os.path.exists(path):
-            with open(path, 'r') as f:
-                data = json.load(f)
-            # Cache in memory for next time
-            _memory_cache[session_id] = data
-            logger.info(f"Session from file: {session_id[:8]}...")
-            return data
+        if row:
+            logger.debug(f"Session loaded from SQLite: {session_id[:8]}...")
+            return json.loads(row[0])
         
-        logger.error(f"Session not found: {session_id[:8]}...")
+        logger.error(f"Session not found in SQLite: {session_id[:8]}...")
         return None
     except Exception as e:
         logger.error(f"load_session failed: {e}")
         return None
+
+
+def delete_session(session_id: str) -> bool:
+    """Delete session from SQLite"""
+    try:
+        with _db_lock:
+            conn = _get_db()
+            conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+            conn.commit()
+            conn.close()
+        logger.debug(f"Session deleted from SQLite: {session_id[:8]}...")
+        return True
+    except Exception as e:
+        logger.error(f"delete_session failed: {e}")
+        return False
+
 
 class APEXEnvironment:
     """Core APEX environment - manages sessions and episodes"""
@@ -123,9 +151,20 @@ class APEXEnvironment:
         # Store session in memory
         self.sessions[session_id] = session_data
         
-        # Save to dual-layer storage (memory + file)
-        saved = save_session(session_id, session_data)
-        logger.info(f"Reset: session={session_id[:8]}... domain={domain} difficulty={difficulty} saved={saved}")
+        # Save to SQLite for cross-worker persistence
+        save_session(session_id, {
+            "session_id": session_id,
+            "domain": domain,
+            "difficulty": difficulty,
+            "mode": mode,
+            "step": 0,
+            "rewards": [],
+            "step_scores": [],
+            "done": False,
+            "history": [],
+            "task_id": task.get("task_id", "unknown")
+        })
+        logger.info(f"Reset: session={session_id[:8]}... domain={domain} difficulty={difficulty}")
         
         # Create observation
         observation = Observation(
@@ -156,8 +195,14 @@ class APEXEnvironment:
         Returns:
             (observation, reward, done, info)
         """
+        # Try memory first, then SQLite for cross-worker support
         if session_id not in self.sessions:
-            raise ValueError(f"Session {session_id} not found")
+            session_data = load_session(session_id)
+            if not session_data:
+                raise ValueError(f"Session {session_id} not found")
+            # Restore to memory for this session
+            self.sessions[session_id] = session_data
+        
         
         session = self.sessions[session_id]
         task = session["task"]
@@ -233,12 +278,20 @@ class APEXEnvironment:
         if reward_info.step_scores:
             info["step_scores"] = reward_info.step_scores
         
+        # Save updated session to SQLite for cross-worker persistence
+        save_session(session_id, session)
+        
         return obs, reward_info.reward, done, info
     
     def state(self, session_id: str) -> Dict[str, Any]:
         """Get current session state"""
+        # Try memory first, then SQLite
         if session_id not in self.sessions:
-            raise ValueError(f"Session {session_id} not found")
+            session_data = load_session(session_id)
+            if not session_data:
+                raise ValueError(f"Session {session_id} not found")
+            # Restore to memory
+            self.sessions[session_id] = session_data
         
         session = self.sessions[session_id]
         task = session.get("task", {})
