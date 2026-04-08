@@ -17,125 +17,36 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# SESSION STORAGE - DUAL-LAYER (MEMORY + FILE)
+# SESSION STORAGE - SINGLE GLOBAL CACHE
 # ============================================================================
 
-# Memory cache for fast same-worker hits
+# CRITICAL: Global sessions dict (shared within same process/worker)
 _memory_cache = {}
 
-# File storage for cross-worker persistence on HF Spaces
-SESSION_DIR = "/tmp/apex_sessions"
-
-# Create directory immediately when module loads
-try:
-    os.makedirs(SESSION_DIR, exist_ok=True)
-    # Verify we can write to it
-    test_path = os.path.join(SESSION_DIR, "test_write.json")
-    with open(test_path, 'w') as f:
-        json.dump({"test": True}, f)
-    os.remove(test_path)
-    logger.info(f"Session storage ready at {SESSION_DIR}")
-except Exception as e:
-    logger.error(f"Session storage FAILED: {e}")
-    # Fallback to current directory
-    SESSION_DIR = "./sessions"
-    os.makedirs(SESSION_DIR, exist_ok=True)
-    logger.info(f"Fallback to {SESSION_DIR}")
+logger.info("✅ Global session storage initialized")
 
 
 def save_session(session_id: str, data: dict) -> bool:
-    """Save session to memory and file with aggressive synchronization"""
+    """Save session to global memory cache"""
     try:
-        # Always save to memory cache first (primary)
         _memory_cache[session_id] = data
-        logger.info(f"[SAVE] Memory cache: {session_id[:8]}... saved")
-        
-        # Then save to file for cross-worker persistence
-        path = os.path.join(SESSION_DIR, f"{session_id}.json")
-        
-        # Write to temp file first, then rename (atomic write)
-        tmp_path = path + ".tmp"
-        
-        # Delete existing tmp if it exists (cleanup)
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-        
-        # Write with full flush
-        with open(tmp_path, 'w') as f:
-            json.dump(data, f, default=str)
-            f.flush()
-            os.fsync(f.fileno())
-        
-        # Atomic rename
-        os.replace(tmp_path, path)
-        
-        # CRITICAL: Force directory sync (fsync the directory itself)
-        try:
-            dir_fd = os.open(SESSION_DIR, os.O_RDONLY)
-            os.fsync(dir_fd)
-            os.close(dir_fd)
-        except:
-            pass  # Best effort
-        
-        # Verify it was written
-        if not os.path.exists(path):
-            logger.error(f"[SAVE] CRITICAL: File vanished after write: {path}")
-            return False
-        
-        # Verify file size is non-zero
-        file_size = os.path.getsize(path)
-        if file_size == 0:
-            logger.error(f"[SAVE] CRITICAL: File is empty: {path}")
-            return False
-        
-        logger.info(f"[SAVE] File: {session_id[:8]}... -> {path} ({file_size} bytes)")
+        logger.debug(f"Session saved to cache: {session_id[:8]}...")
         return True
     except Exception as e:
-        logger.error(f"[SAVE] FAILED for {session_id}: {e}", exc_info=True)
-        # Memory cache is still valid as backup
+        logger.error(f"save_session FAILED: {e}")
         return False
 
 
 def load_session(session_id: str) -> Optional[dict]:
-    """Load session from memory first, then file (with extensive logging)"""
+    """Load session from global memory cache"""
     try:
-        # Try memory first (same worker)
         if session_id in _memory_cache:
-            logger.info(f"[LOAD] Memory cache HIT: {session_id[:8]}...")
+            logger.debug(f"Session loaded from cache: {session_id[:8]}...")
             return _memory_cache[session_id]
-        
-        logger.debug(f"[LOAD] Memory cache MISS, trying file...")
-        
-        # Try file (cross-worker)
-        path = os.path.join(SESSION_DIR, f"{session_id}.json")
-        
-        if not os.path.exists(path):
-            # Detailed debug info
-            if os.path.exists(SESSION_DIR):
-                try:
-                    files = os.listdir(SESSION_DIR)
-                    session_files = [f for f in files if f.endswith('.json')]
-                    logger.error(
-                        f"[LOAD] File {path} NOT FOUND. "
-                        f"DIR has {len(session_files)} sessions: {session_files[:3]}"
-                    )
-                except Exception as e:
-                    logger.error(f"[LOAD] Error listing directory: {e}")
-            else:
-                logger.error(f"[LOAD] SESSION_DIR doesn't exist: {SESSION_DIR}")
-            return None
-        
-        # File exists, load it
-        logger.info(f"[LOAD] File found: {path}")
-        with open(path, 'r') as f:
-            data = json.load(f)
-        
-        # Cache in memory for next access
-        _memory_cache[session_id] = data
-        logger.info(f"[LOAD] File HIT: {session_id[:8]}... loaded and cached")
-        return data
+        logger.error(f"Session {session_id[:8]}... NOT in cache")
+        return None
     except Exception as e:
-        logger.error(f"[LOAD] FAILED for {session_id}: {e}", exc_info=True)
+        logger.error(f"load_session FAILED: {e}")
         return None
 
 

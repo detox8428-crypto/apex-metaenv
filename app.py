@@ -246,40 +246,7 @@ async def get_state_path(session_id: str):
 
 
 # ============================================================================
-# DEBUG ENDPOINTS (for diagnosing storage issues)
-# ============================================================================
-
-@app.get("/debug/sessions")
-async def debug_sessions():
-    """Debug endpoint - show what sessions exist in memory and file storage"""
-    import os
-    try:
-        # Get from environment module
-        from environment import _memory_cache, SESSION_DIR
-        
-        memory_sessions = list(_memory_cache.keys())
-        
-        file_sessions = []
-        if os.path.exists(SESSION_DIR):
-            try:
-                files = os.listdir(SESSION_DIR)
-                file_sessions = [f.replace('.json', '') for f in files if f.endswith('.json')]
-            except:
-                pass
-        
-        return {
-            "memory_sessions": memory_sessions[:10],
-            "file_sessions": file_sessions[:10],
-            "memory_count": len(memory_sessions),
-            "file_count": len(file_sessions),
-            "session_dir": SESSION_DIR,
-            "session_dir_exists": os.path.exists(SESSION_DIR)
-        }
-    except Exception as e:
-        logger.error(f"Debug error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+# STARTUP LOGGING
 # ============================================================================
 
 @app.on_event("startup")
