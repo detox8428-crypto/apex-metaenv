@@ -22,8 +22,11 @@ logger = logging.getLogger(__name__)
 # SESSION STORAGE - SQLite (for multi-worker HF Spaces compatibility)
 # ============================================================================
 
-DB_PATH = "/tmp/apex_sessions.db"
+# Use app root directory which is shared across all workers
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "apex_sessions.db")
 _db_lock = threading.Lock()
+
+logger.info(f"SQLite database path: {DB_PATH}")
 
 
 def _get_db():

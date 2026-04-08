@@ -1,85 +1,74 @@
 #!/usr/bin/env python3
 """
-APEX Engineering Benchmark - Inference Script
-Runs LLM agent against the APEX environment
+APEX OpenEnv Hackathon - Inference Script
+Runs LLM agent against the local APEX environment
 """
 
 import os
-import asyncio
+import sys
+import json
+import traceback
 import requests
 from openai import OpenAI
 
 # ============================================================
-# REQUIRED ENV VARS (do not add defaults to HF_TOKEN)
+# ENV VARS
 # ============================================================
-API_BASE_URL = os.getenv("API_BASE_URL", "https://shaikb-apex.hf.space")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-HF_TOKEN = os.getenv("HF_TOKEN")
+API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 
-# Optional - for local docker image testing
-LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+# Local environment server
+LOCAL_ENV_URL = "http://localhost:8000"
 
 # ============================================================
 # LOGGING FUNCTIONS - exact format required by judges
 # ============================================================
 
 def log_start(task, env, model):
+    """Log task start."""
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
 def log_step(step, action, reward, done, error):
-    action_str = str(action)[:80].replace('\n', ' ')
-    print(f"[STEP] step={step} action={action_str!r} reward={reward:.4f} done={done} error={error}", flush=True)
+    """Log step result."""
+    action_str = str(action)[:100].replace('\n', ' ')
+    error_str = f"{error}" if error else "null"
+    print(f"[STEP] step={step} action={action_str!r} reward={reward:.2f} done={done} error={error_str}", flush=True)
 
 def log_end(success, steps, score, rewards):
-    print(f"[END] success={success} steps={steps} score={score:.4f} rewards={rewards}", flush=True)
+    """Log episode end."""
+    rewards_str = ",".join([f"{r:.2f}" for r in rewards])
+    print(f"[END] success={success} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
 
 # ============================================================
-# OPENAI CLIENT - uses env vars
+# OPENAI CLIENT
 # ============================================================
 
 client = OpenAI(
-    base_url="https://api-inference.huggingface.co/v1",
-    api_key=HF_TOKEN or "dummy"
+    base_url=API_BASE_URL,
+    api_key=API_KEY or "dummy"
 )
 
-SYSTEM_PROMPT = """You are a senior software engineer and SRE expert.
-For data_pipeline tasks: write a complete Python function called solve(df) using pandas.
-For code_review tasks: identify the exact bug AND explain production impact 
-  - you MUST mention: scale, users affected, timeout, data loss, latency.
-For incident_debug tasks: diagnose root cause, explain the cascade, provide fix.
-Read feedback carefully after each step and improve your answer."""
+SYSTEM_PROMPT = """You are an expert Python engineer. 
+Your task is to write a complete Python function called `solve(problem)` that solves the given problem.
+Return ONLY valid Python code, no explanations."""
 
-EPISODES = [
-    {"domain": "data_pipeline",  "difficulty": "easy",   "task_id": "dp-easy-001"},
-    {"domain": "data_pipeline",  "difficulty": "medium", "task_id": "dp-medium-001"},
-    {"domain": "data_pipeline",  "difficulty": "hard",   "task_id": "dp-hard-001"},
-    {"domain": "code_review",    "difficulty": "easy",   "task_id": "cr-easy-001"},
-    {"domain": "code_review",    "difficulty": "medium", "task_id": "cr-medium-001"},
-    {"domain": "code_review",    "difficulty": "hard",   "task_id": "cr-hard-001"},
-    {"domain": "incident_debug", "difficulty": "easy",   "task_id": "id-easy-001"},
-    {"domain": "incident_debug", "difficulty": "medium", "task_id": "id-medium-001"},
-    {"domain": "incident_debug", "difficulty": "hard",   "task_id": "id-hard-001"},
+TASKS = [
+    "solve-easy",
+    "solve-medium",
+    "solve-hard",
 ]
 
-MAX_STEPS = 3
+MAX_STEPS = 8
 SUCCESS_THRESHOLD = 0.5
-MAX_TOTAL_REWARD = MAX_STEPS * len(EPISODES)
 
-def get_agent_action(observation, feedback="", step=1):
-    """Get LLM response for current observation."""
-    domain = observation.get("domain", "data_pipeline")
-    
-    user_msg = f"""Task: {observation.get('title', '')}
-Description: {observation.get('description', '')}
-"""
-    if observation.get("data_sample"):
-        user_msg += f"\nData:\n{observation['data_sample']}\n"
-    if observation.get("code_to_review"):
-        user_msg += f"\nCode to review:\n{observation['code_to_review']}\n"
-    if observation.get("logs"):
-        user_msg += f"\nLogs:\n{observation['logs']}\n"
+def get_agent_action(problem_desc, feedback="", step=1):
+    """Get LLM response for current problem."""
+    user_msg = f"""Problem: {problem_desc}"""
     if feedback:
-        user_msg += f"\nPrevious feedback: {feedback}\nImprove your answer now."
+        user_msg += f"\n\nPrevious feedback: {feedback}\nImprove your code based on this feedback."
+    
+    user_msg += "\n\nWrite a complete Python function called `solve(problem)` that solves this. Return ONLY the code."
 
     try:
         response = client.chat.completions.create(
@@ -88,123 +77,145 @@ Description: {observation.get('description', '')}
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_msg}
             ],
-            max_tokens=500,
-            temperature=0.3
+            max_tokens=1000,
+            temperature=0.3,
+            timeout=30
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"def solve(df):\n    return df  # Error: {e}"
+        return f"def solve(problem):\n    return None  # Error: {str(e)}"
 
-def run_episode(domain, difficulty, task_id):
-    """Run one episode against the APEX environment."""
-    env_name = "apex-engineering-benchmark"
+def run_task(task_name):
+    """Run one task against the local APEX environment."""
+    env_name = "apex"
     
-    # Reset
-    try:
-        r = requests.post(
-            f"{API_BASE_URL}/reset",
-            json={"domain": domain, "difficulty": difficulty},
-            timeout=30
-        )
-        r.raise_for_status()
-        data = r.json()
-    except Exception as e:
-        log_start(task=task_id, env=env_name, model=MODEL_NAME)
-        log_step(step=1, action="reset_failed", reward=0.0, done=True, error=str(e))
-        log_end(success=False, steps=0, score=0.0, rewards=[])
-        return 0.0
-
-    session_id = data["session_id"]
-    observation = data["observation"]
-
-    log_start(task=task_id, env=env_name, model=MODEL_NAME)
-
+    # Determine difficulty from task name
+    if "easy" in task_name:
+        difficulty = "easy"
+    elif "medium" in task_name:
+        difficulty = "medium"
+    else:
+        difficulty = "hard"
+    
+    log_start(task=task_name, env=env_name, model=MODEL_NAME)
+    
     rewards = []
     feedback = ""
     steps_taken = 0
-
-    for step in range(1, MAX_STEPS + 1):
-        # Get agent action
-        action = get_agent_action(observation, feedback, step)
-
-        # Build action payload
-        if domain == "data_pipeline":
-            payload = {"session_id": session_id, "code": action}
-        elif domain == "code_review":
-            payload = {"session_id": session_id, "review": action}
-        else:
-            payload = {"session_id": session_id, "diagnosis": action}
-
-        # Submit step
+    success = False
+    error_occurred = False
+    
+    try:
+        # Reset the environment
         try:
-            r = requests.post(
-                f"{API_BASE_URL}/step",
-                json=payload,
+            reset_resp = requests.post(
+                f"{LOCAL_ENV_URL}/reset",
+                json={"difficulty": difficulty},
                 timeout=30
             )
-            r.raise_for_status()
-            result = r.json()
+            reset_resp.raise_for_status()
+            reset_data = reset_resp.json()
         except Exception as e:
-            log_step(step=step, action=action, reward=0.0, done=True, error=str(e))
-            break
-
-        reward = float(result.get("reward", 0.0))
-        done = bool(result.get("done", False))
-        feedback = result.get("feedback", "")
-        error = None
-
-        rewards.append(reward)
-        steps_taken = step
-
-        log_step(step=step, action=action, reward=reward, done=done, error=error)
-
-        if done:
-            break
-
-        # Update observation for next step
-        if result.get("observation"):
-            observation = result["observation"]
-
-    score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD > 0 else 0.0
-    score = min(max(score, 0.0), 1.0)
-    success = max(rewards) >= SUCCESS_THRESHOLD if rewards else False
-
-    log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
-    print(flush=True)
-
-    return max(rewards) if rewards else 0.0
-
+            log_step(step=1, action="reset_failed", reward=0.0, done=True, error=str(e))
+            log_end(success=False, steps=0, score=0.0, rewards=[])
+            return 0.0
+        
+        session_id = reset_data.get("session_id")
+        problem_state = reset_data.get("state", {})
+        problem_desc = problem_state.get("problem", "")
+        
+        # Run the task loop
+        for step in range(1, MAX_STEPS + 1):
+            try:
+                # Get agent action
+                action = get_agent_action(problem_desc, feedback, step)
+                
+                # Submit step to environment
+                try:
+                    step_resp = requests.post(
+                        f"{LOCAL_ENV_URL}/step",
+                        json={
+                            "session_id": session_id,
+                            "action": {"code": action}
+                        },
+                        timeout=30
+                    )
+                    step_resp.raise_for_status()
+                    result = step_resp.json()
+                except Exception as e:
+                    log_step(step=step, action=action, reward=0.0, done=True, error=str(e))
+                    error_occurred = True
+                    break
+                
+                reward = float(result.get("reward", 0.0))
+                terminated = bool(result.get("terminated", False))
+                feedback = result.get("feedback", "")
+                
+                rewards.append(reward)
+                steps_taken = step
+                
+                log_step(step=step, action=action, reward=reward, done=terminated, error=None)
+                
+                if terminated:
+                    break
+                
+                # Update problem state for next step if available
+                if result.get("state"):
+                    problem_state = result["state"]
+                    problem_desc = problem_state.get("problem", problem_desc)
+            
+            except Exception as e:
+                log_step(step=step, action="error", reward=0.0, done=True, error=str(e))
+                error_occurred = True
+                break
+        
+        # Calculate score
+        score = max(rewards) if rewards else 0.0
+        success = score >= SUCCESS_THRESHOLD
+    
+    except Exception as e:
+        # Outer exception handler
+        error_occurred = True
+        log_step(step=1, action="error", reward=0.0, done=True, error=str(e))
+    
+    finally:
+        # Always log end, even if an exception occurred
+        score = max(rewards) if rewards else 0.0
+        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+        print(flush=True)
+    
+    return score
 
 def main():
-    print("=" * 80, flush=True)
-    print("APEX ENGINEERING BENCHMARK v3.0", flush=True)
-    print(f"Model: {MODEL_NAME}", flush=True)
-    print(f"Environment: {API_BASE_URL}", flush=True)
-    print("=" * 80, flush=True)
-    print(flush=True)
-
-    all_scores = []
-    domain_scores = {}
-
-    for ep in EPISODES:
-        score = run_episode(ep["domain"], ep["difficulty"], ep["task_id"])
-        all_scores.append(score)
-        domain_scores.setdefault(ep["domain"], []).append(score)
-
-    avg = sum(all_scores) / len(all_scores) if all_scores else 0.0
-
-    print("=" * 80, flush=True)
-    print("BENCHMARK SUMMARY", flush=True)
-    print("=" * 80, flush=True)
-    print(f"Episodes completed: {len(all_scores)}/{len(EPISODES)}", flush=True)
-    print(f"Average reward: {avg:.4f}", flush=True)
-    print(flush=True)
-    print("Per-Domain Performance:", flush=True)
-    for domain, scores in domain_scores.items():
-        davg = sum(scores) / len(scores)
-        print(f"  {domain:<20} -> avg={davg:.4f} ({len(scores)} episodes)", flush=True)
-    print("=" * 80, flush=True)
-
+    """Run the benchmark."""
+    try:
+        print("=" * 80, flush=True)
+        print("APEX OPENENVIRONMENT BENCHMARK", flush=True)
+        print(f"Model: {MODEL_NAME}", flush=True)
+        print(f"API Base URL: {API_BASE_URL}", flush=True)
+        print(f"Local Env URL: {LOCAL_ENV_URL}", flush=True)
+        print("=" * 80, flush=True)
+        print(flush=True)
+        
+        all_scores = []
+        
+        for task in TASKS:
+            score = run_task(task)
+            all_scores.append(score)
+        
+        avg = sum(all_scores) / len(all_scores) if all_scores else 0.0
+        
+        print("=" * 80, flush=True)
+        print("BENCHMARK SUMMARY", flush=True)
+        print("=" * 80, flush=True)
+        print(f"Tasks completed: {len(all_scores)}/{len(TASKS)}", flush=True)
+        print(f"Average score: {avg:.2f}", flush=True)
+        print("=" * 80, flush=True)
+        
+    except Exception as e:
+        print(f"[ERROR] Benchmark failed: {e}", flush=True)
+        traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
