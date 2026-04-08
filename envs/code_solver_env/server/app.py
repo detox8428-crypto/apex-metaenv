@@ -367,7 +367,7 @@ async def step_env(
             reward = reward_result["reward"]
             done = reward_result["done"] or state["step_count"] >= 5
             
-            state["passed_cases"] = hidden_passed
+            state["passed_cases"] = visible_passed + hidden_passed
             
         elif task_type == "review":
             # REVIEW mode: parse review JSON and score it
