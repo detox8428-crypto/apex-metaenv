@@ -68,9 +68,9 @@ async def root():
 
 @app.post("/reset", response_model=ResetResponse)
 async def reset_env(
+    request: Request,
     domain: Optional[str] = Query(default=None, description="data_pipeline, code_review, or incident_debug"),
-    difficulty: Optional[str] = Query(default=None, description="easy, medium, or hard"),
-    body: Optional[ResetRequest] = Body(default=None)
+    difficulty: Optional[str] = Query(default=None, description="easy, medium, or hard")
 ):
     """
     Reset environment (OpenEnv spec)
@@ -82,10 +82,24 @@ async def reset_env(
     Returns: {session_id, observation}
     """
     try:
+        # Try to parse body if content-type is JSON
+        body_domain = None
+        body_difficulty = None
+        body_mode = "solve"
+        
+        if request.headers.get("content-type") == "application/json":
+            try:
+                body_data = await request.json()
+                body_domain = body_data.get("domain")
+                body_difficulty = body_data.get("difficulty")
+                body_mode = body_data.get("mode", "solve")
+            except:
+                pass
+        
         # Merge query params and body - query params take precedence
-        final_domain = domain or (body.domain if body else None) or "data_pipeline"
-        final_difficulty = difficulty or (body.difficulty if body else None) or "easy"
-        final_mode = body.mode if body else "solve"
+        final_domain = domain or body_domain or "data_pipeline"
+        final_difficulty = difficulty or body_difficulty or "easy"
+        final_mode = body_mode
         
         session_id, observation = env.reset(
             domain=final_domain,
