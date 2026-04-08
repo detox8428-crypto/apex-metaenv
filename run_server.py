@@ -51,22 +51,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    print()
-    print("Environment variables:")
-    print(f"  API_BASE_URL: {os.getenv('API_BASE_URL', 'not set')}")
-    print(f"  MODEL_NAME: {os.getenv('MODEL_NAME', 'not set')}")
-    print()
-    print("Press CTRL+C to stop")
-    print("=" * 70 + "\n")
-    
-    # Run server
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        log_level="info",
-    )
-
-if __name__ == "__main__":
-    main()

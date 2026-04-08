@@ -12,7 +12,7 @@ description: >
   - incident_debug: 9 tasks (multi-step SRE scenarios with progressive revelation - NEW)
 type: rl-environment
 runtime: docker
-app: run_server.py
+app: app.py
 port: 7860
 tagline: "The multi-turn RL benchmark for real engineering tasks"
 benchmarks:
