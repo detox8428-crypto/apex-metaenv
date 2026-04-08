@@ -19,7 +19,7 @@ API_KEY = os.environ["API_KEY"]
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 # Local environment server
-LOCAL_ENV_URL = "http://localhost:8000"
+LOCAL_ENV_URL = os.environ.get("ENV_URL", "https://shaikb-apex.hf.space")
 
 # ============================================================
 # LOGGING FUNCTIONS - exact format required by judges
@@ -66,24 +66,20 @@ def get_agent_action(problem_desc, feedback="", step=1):
     """Get LLM response for current problem."""
     user_msg = f"""Problem: {problem_desc}"""
     if feedback:
-        user_msg += f"\n\nPrevious feedback: {feedback}\nImprove your code based on this feedback."
+        user_msg += f"\n\nPrevious feedback: {feedback}\nImprove your solution."
     
-    user_msg += "\n\nWrite a complete Python function called `solve(problem)` that solves this. Return ONLY the code."
+    user_msg += "\n\nWrite Python code to solve this. Return ONLY the code."
 
-    try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_msg}
-            ],
-            max_tokens=1000,
-            temperature=0.3,
-            timeout=30
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"def solve(problem):\n    return None  # Error: {str(e)}"
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content": "You are an expert Python engineer. Return ONLY valid Python code."},
+            {"role": "user", "content": user_msg}
+        ],
+        max_tokens=1000,
+        temperature=0.3,
+    )
+    return response.choices[0].message.content.strip()
 
 def run_task(task_name):
     """Run one task against the local APEX environment."""
