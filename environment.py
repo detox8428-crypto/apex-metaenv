@@ -17,38 +17,62 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# SESSION STORAGE - SINGLE GLOBAL CACHE
+# SESSION STORAGE - HYBRID (MEMORY + FILE)
 # ============================================================================
 
-# CRITICAL: Global sessions dict (shared within same process/worker)
+# Global memory cache (fast, within same worker)
 _memory_cache = {}
 
-logger.info("✅ Global session storage initialized")
+# File storage directory (for cross-worker sharing within same container)
+SESSION_DIR = "./sessions"
+try:
+    os.makedirs(SESSION_DIR, exist_ok=True)
+    logger.info(f"✅ File storage at {SESSION_DIR}")
+except Exception as e:
+    logger.error(f"❌ Cannot create sessions dir: {e}")
 
 
 def save_session(session_id: str, data: dict) -> bool:
-    """Save session to global memory cache"""
+    """Save session to memory AND file (for multi-worker persistence)"""
     try:
+        # Always save to memory first
         _memory_cache[session_id] = data
-        logger.debug(f"Session saved to cache: {session_id[:8]}...")
+        
+        # Also save to file for cross-worker requests
+        path = os.path.join(SESSION_DIR, f"{session_id}.json")
+        with open(path, 'w') as f:
+            json.dump(data, f, default=str, indent=2)
+        
+        logger.info(f"Session saved: {session_id[:8]}... (memory + file)")
         return True
     except Exception as e:
-        logger.error(f"save_session FAILED: {e}")
+        logger.error(f"save_session failed: {e}")
         return False
 
 
 def load_session(session_id: str) -> Optional[dict]:
-    """Load session from global memory cache"""
+    """Load session from memory first, then file"""
     try:
+        # Priority 1: Memory (same worker, fastest)
         if session_id in _memory_cache:
-            logger.debug(f"Session loaded from cache: {session_id[:8]}...")
+            logger.debug(f"Session from memory: {session_id[:8]}...")
             return _memory_cache[session_id]
-        logger.error(f"Session {session_id[:8]}... NOT in cache")
+        
+        # Priority 2: File (cross-worker)
+        path = os.path.join(SESSION_DIR, f"{session_id}.json")
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                data = json.load(f)
+            # Cache in memory for next time
+            _memory_cache[session_id] = data
+            logger.info(f"Session from file: {session_id[:8]}...")
+            return data
+        
+        logger.error(f"Session not found: {session_id[:8]}...")
         return None
     except Exception as e:
-        logger.error(f"load_session FAILED: {e}")
+        logger.error(f"load_session failed: {e}")
         return None
-
 
 class APEXEnvironment:
     """Core APEX environment - manages sessions and episodes"""

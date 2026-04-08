@@ -1,0 +1,60 @@
+{
+  "session_id": "3cae5d56-ef10-41da-8d84-69e23ba1d0ed",
+  "domain": "data_pipeline",
+  "difficulty": "easy",
+  "mode": "solve",
+  "task": {
+    "task_id": "dp-easy-001",
+    "title": "Customer Sales Aggregation",
+    "description": "Write a function aggregate_sales(df) that groups sales data by customer_id and returns the total amount per customer, sorted by amount descending.",
+    "function_name": "aggregate_sales",
+    "data_sample": "customer_id,product,amount,date\nC001,laptop,1200,2024-01-15\nC001,mouse,25,2024-01-16\nC002,keyboard,85,2024-01-15\nC001,monitor,350,2024-01-17",
+    "test_cases": [
+      {
+        "input": {
+          "customer_id": [
+            "C001",
+            "C001",
+            "C002"
+          ],
+          "amount": [
+            1200,
+            25,
+            85
+          ]
+        },
+        "expected": {
+          "C001": 1225,
+          "C002": 85
+        }
+      }
+    ],
+    "expected_fix_keywords": [
+      "groupby",
+      "sum"
+    ],
+    "max_steps": 3
+  },
+  "step": 1,
+  "rewards": [
+    1.0,
+    1.0
+  ],
+  "step_scores": [
+    1.0
+  ],
+  "done": true,
+  "history": [
+    {
+      "step": 1,
+      "reward": 1.0,
+      "action": "def aggregate_sales(df):\n    return df.groupby(\"customer_id\")[\"amount\"].sum().sort_values(ascending=False)",
+      "feedback": "Passed 1/1 test cases + efficiency bonus"
+    },
+    {
+      "step": 1,
+      "reward": 1.0,
+      "feedback": "Passed 1/1 test cases + efficiency bonus"
+    }
+  ]
+}
