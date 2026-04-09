@@ -263,6 +263,132 @@ async def get_state_path(session_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/leaderboard")
+async def leaderboard(limit: int = Query(10, ge=1, le=100)):
+    """
+    Get top sessions by reward (leaderboard)
+    
+    GET /leaderboard?limit=10
+    """
+    try:
+        all_sessions = list(SESSIONS.values())
+        # Filter sessions with rewards and sort by max reward
+        ranked = sorted(
+            [s for s in all_sessions if s.get("rewards") and len(s["rewards"]) > 0],
+            key=lambda x: max(x["rewards"]),
+            reverse=True
+        )[:limit]
+        
+        return {
+            "total_sessions": len(all_sessions),
+            "limit": limit,
+            "leaderboard": [
+                {
+                    "session_id": s["session_id"],
+                    "domain": s.get("domain", "unknown"),
+                    "difficulty": s.get("difficulty", "unknown"),
+                    "best_reward": max(s["rewards"]) if s.get("rewards") else 0,
+                    "avg_reward": sum(s["rewards"]) / len(s["rewards"]) if s.get("rewards") else 0,
+                    "steps": s.get("step", 0),
+                    "total_timesteps": len(s.get("rewards", []))
+                }
+                for s in ranked
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Leaderboard error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/tasks")
+async def list_tasks():
+    """
+    List all available tasks (OpenEnv extension)
+    
+    GET /tasks
+    """
+    return {
+        "total_tasks": 29,
+        "domains": {
+            "data_pipeline": {
+                "description": "Fix broken data pipelines in production",
+                "difficulties": ["easy", "medium", "hard"],
+                "tasks": 10
+            },
+            "code_review": {
+                "description": "Review code at scale and identify bugs",
+                "difficulties": ["easy", "medium", "hard"],
+                "tasks": 10
+            },
+            "incident_debug": {
+                "description": "Diagnose and fix production incidents",
+                "difficulties": ["easy", "medium", "hard"],
+                "tasks": 9
+            }
+        },
+        "reset_endpoint": "POST /reset?domain={domain}&difficulty={difficulty}&mode=solve",
+        "modes": ["solve", "diagnose"]
+    }
+
+
+@app.get("/manifest")
+async def manifest():
+    """
+    Get environment manifest (OpenEnv spec)
+    
+    GET /manifest
+    """
+    return {
+        "name": "apex-engineering-benchmark",
+        "version": "3.0.0",
+        "spec": "openenv/v1",
+        "title": "APEX Engineering Benchmark",
+        "description": "RL environment for training agents to think like senior engineers",
+        "total_tasks": 29,
+        "domains": ["data_pipeline", "code_review", "incident_debug"],
+        "difficulty_levels": ["easy", "medium", "hard"],
+        "action_space": "Text (code/reviews/diagnoses)",
+        "observation_space": "Dict with task_id, domain, difficulty, prompt, context",
+        "reward_range": [0.0, 1.0],
+        "api_endpoints": {
+            "reset": {"method": "POST", "path": "/reset", "description": "Start new episode"},
+            "step": {"method": "POST", "path": "/step", "description": "Submit action"},
+            "state": {"method": "GET", "path": "/state/{session_id}", "description": "Get session state"},
+            "health": {"method": "GET", "path": "/health", "description": "Health check"},
+            "leaderboard": {"method": "GET", "path": "/leaderboard", "description": "Get top sessions"},
+            "tasks": {"method": "GET", "path": "/tasks", "description": "List available tasks"},
+            "manifest": {"method": "GET", "path": "/manifest", "description": "Environment manifest"},
+            "delete_session": {"method": "DELETE", "path": "/sessions/{session_id}", "description": "Delete session"}
+        },
+        "docs_url": "/docs"
+    }
+
+
+@app.delete("/sessions/{session_id}")
+async def delete_session(session_id: str):
+    """
+    Delete a session (cleanup)
+    
+    DELETE /sessions/{session_id}
+    """
+    try:
+        if session_id not in SESSIONS:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+        
+        del SESSIONS[session_id]
+        logger.info(f"Deleted session: {session_id[:8]}...")
+        
+        return {
+            "deleted": session_id,
+            "remaining_sessions": len(SESSIONS)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete session error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================================
 # STARTUP
 # ============================================================================
@@ -275,11 +401,15 @@ async def startup_event():
     logger.info("Mode: Single Worker (--workers 1)")
     logger.info("=" * 70)
     logger.info("Endpoints:")
-    logger.info("  POST /reset  - Start new episode")
-    logger.info("  POST /step   - Submit action (code/review/diagnosis)")
-    logger.info("  GET  /state  - Get session state")
-    logger.info("  GET  /health - Health check")
-    logger.info("  GET  /docs   - API documentation")
+    logger.info("  POST   /reset              - Start new episode")
+    logger.info("  POST   /step               - Submit action (code/review/diagnosis)")
+    logger.info("  GET    /state/{session_id} - Get session state")
+    logger.info("  GET    /leaderboard        - Top sessions by reward")
+    logger.info("  GET    /tasks              - List available tasks")
+    logger.info("  GET    /manifest           - Environment manifest")
+    logger.info("  DELETE /sessions/{id}      - Delete session")
+    logger.info("  GET    /health             - Health check")
+    logger.info("  GET    /docs               - API documentation")
     logger.info("=" * 70)
 
 

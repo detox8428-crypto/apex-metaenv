@@ -69,6 +69,27 @@ APEX fills this gap. It is the **training ground for the next generation of engi
 
 ---
 
+## ⚔️ APEX vs Traditional RL Benchmarks
+
+The era of pure optimization is ending. RL benchmarks that train agents to shuffle numbers (warehouse inventory, resource allocation) don't transfer to real AI products.
+
+**APEX is different.** It trains agents on the actual work engineers do — writing code, reviewing code at scale, debugging production outages. The agent's output is directly useful in real engineering workflows.
+
+| Benchmark | Domain | Agent Learns To... | Real-world Usefulness |
+|-----------|--------|-------------------|----------------------|
+| LUNAR | Warehouse / supply chain | Optimize inventory numbers | Supply chain simulation |
+| Benchmarks (HumanEval, MBPP) | Algorithm puzzles | Solve isolated code problems | Interview prep only |
+| **APEX** | **Real Engineering** | **Debug production incidents, review code at scale, fix data pipelines** | **Direct: code outputs usable in engineering workflows** |
+
+**Why this matters:**  
+- A solver agent trained on LUNAR can run a warehouse simulator faster. Useful for supply chain optimization.
+- A solver trained on HumanEval can solve an interview question. Useful for... passing interviews.
+- A solver trained on APEX can diagnose a real production outage from logs, write fixes, and review them at scale. **That's a direct replacement for junior SREs.**
+
+APEX is the first OpenEnv benchmark where the agent's reasoning output is **production-ready**.
+
+---
+
 ## 🧠 The 3 Engineering Domains
 
 ### 1️⃣ Data Pipeline Engineering — 11 Tasks
@@ -277,6 +298,74 @@ curl "https://shaikb-apex.hf.space/state/3f7a2b1c-..."
   "done": true,
   "history": ["Step 1: passed 5/5 test cases"]
 }
+```
+
+#### `GET /leaderboard` — Top sessions by reward
+
+```bash
+curl "https://shaikb-apex.hf.space/leaderboard?limit=10"
+```
+
+```json
+{
+  "total_sessions": 245,
+  "limit": 10,
+  "leaderboard": [
+    {
+      "session_id": "3f7a2b1c-...",
+      "domain": "data_pipeline",
+      "difficulty": "easy",
+      "best_reward": 0.95,
+      "avg_reward": 0.87,
+      "steps": 3,
+      "total_timesteps": 3
+    }
+  ]
+}
+```
+
+#### `GET /tasks` — List all available tasks
+
+```bash
+curl "https://shaikb-apex.hf.space/tasks"
+```
+
+```json
+{
+  "total_tasks": 29,
+  "domains": {
+    "data_pipeline": {
+      "description": "Fix broken data pipelines in production",
+      "difficulties": ["easy", "medium", "hard"],
+      "tasks": 10
+    },
+    "code_review": {
+      "description": "Review code at scale and identify bugs",
+      "difficulties": ["easy", "medium", "hard"],
+      "tasks": 10
+    },
+    "incident_debug": {
+      "description": "Diagnose and fix production incidents",
+      "difficulties": ["easy", "medium", "hard"],
+      "tasks": 9
+    }
+  }
+}
+```
+
+#### `GET /manifest` — Environment manifest
+
+```bash
+curl "https://shaikb-apex.hf.space/manifest"
+```
+
+Returns complete environment specification (name, version, supported endpoints, etc).
+
+#### `DELETE /sessions/{session_id}` — Cleanup session
+
+```bash
+curl -X DELETE "https://shaikb-apex.hf.space/sessions/3f7a2b1c-..."
+# → {"deleted": "3f7a2b1c-...", "remaining_sessions": 244}
 ```
 
 #### `GET /health` — Liveness check
