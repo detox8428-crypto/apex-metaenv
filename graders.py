@@ -35,6 +35,12 @@ class DataPipelineGrader:
                 task=task
             )
         
+        # Strip markdown code fences — LLMs always wrap code in ```python ... ```
+        import re as _re
+        code = _re.sub(r"^```(?:python)?\s*", "", code.strip())
+        code = _re.sub(r"```\s*$", "", code.strip())
+        code = code.strip()
+        
         # Try to execute code and run test cases
         passed_cases = 0
         total_cases = len(task.get("test_cases", []))
