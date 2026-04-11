@@ -387,7 +387,7 @@ curl "https://shaikb-apex.hf.space/health"
 |---------|-------|
 | **Model** | `Qwen/Qwen2.5-72B-Instruct` via HF Inference API |
 | **Script** | `python inference.py` |
-| **Runtime** | ~12 minutes ✅ (limit: 20 min) |
+| **Runtime** | ~15 minutes ✅ (limit: 20 min) |
 | **Hardware** | 2 vCPU, 8GB RAM ✅ |
 
 ```
@@ -395,38 +395,55 @@ curl "https://shaikb-apex.hf.space/health"
 APEX ENGINEERING BENCHMARK v3.0  —  9 Episodes · 3 Domains · 29 Tasks
 ================================================================================
 
-[START] task=easy-solve-001 env=apex-engineering-benchmark model=Qwen2.5-72B
-[STEP]  step=1 action="def solve(df):\n    return df.groupby('cust..." reward=0.4500 done=false error=None
-[STEP]  step=2 action="def solve(df):\n    return df.groupby('cust..." reward=0.7200 done=false error=None
-[STEP]  step=3 action="def solve(df):\n    result = df.groupby('cu..." reward=0.8800 done=true  error=None
-[END]   task=easy-solve-001 success=true  steps=3 score=0.6833 rewards=[0.45, 0.72, 0.88]
+[START] task=easy-solve-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
+[STEP]  step=1 action='```python\nimport pandas as pd\n\ndef aggregate_sales(df):\n    # Group by customer_id and sum the a' reward=0.00 done=false error=null
+[STEP]  step=2 action="```python\nimport pandas as pd\n\ndef aggregate_sales(df):\n    return df.groupby('customer_id')['am" reward=0.00 done=false error=null
+[STEP]  step=3 action="```python\nimport pandas as pd\n\ndef aggregate_sales(df):\n    return df.groupby('customer_id')['am" reward=0.00 done=true error=null
+[END]   success=false steps=3 rewards=0.00,0.00,0.00
 
-[START] task=medium-solve-001 env=apex-engineering-benchmark model=Qwen2.5-72B
-[STEP]  step=1 action="def solve(df1, df2):\n    merged = pd.merge..." reward=0.3500 done=false error=None
-[STEP]  step=2 action="def solve(df1, df2):\n    merged = pd.merge..." reward=0.5800 done=false error=None
-[STEP]  step=3 action="def solve(df1, df2):\n    merged = pd.merge..." reward=0.7100 done=true  error=None
-[END]   task=medium-solve-001 success=true  steps=3 score=0.5467 rewards=[0.35, 0.58, 0.71]
+[START] task=medium-solve-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
+[STEP]  step=1 action='```python\nimport pandas as pd\n\ndef merge_transactions(df1, df2):\n    # Merge the two dataframes ' reward=0.00 done=false error=null
+[STEP]  step=2 action='```python\nimport pandas as pd\n\ndef merge_transactions(df1, df2):\n    merged_df = pd.merge(df1, d' reward=0.00 done=false error=null
+[STEP]  step=3 action='```python\nimport pandas as pd\n\ndef merge_transactions(df1, df2):\n    merged_df = pd.merge(df1, d' reward=0.00 done=true error=null
+[END]   success=false steps=3 rewards=0.00,0.00,0.00
 
-[START] task=hard-solve-001 env=apex-engineering-benchmark model=Qwen2.5-72B
-[STEP]  step=1 action="def solve(df):\n    cutoff = pd.Timestamp(..." reward=0.2500 done=false error=None
-[STEP]  step=2 action="def solve(df):\n    cutoff = pd.Timestamp(..." reward=0.4200 done=false error=None
-[STEP]  step=3 action="def solve(df):\n    df['created_at'] = pd...." reward=0.5600 done=true  error=None
-[END]   task=hard-solve-001 success=false steps=3 score=0.4100 rewards=[0.25, 0.42, 0.56]
+[START] task=hard-solve-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
+[STEP]  step=1 action='```python\nimport pandas as pd\n\ndef compare_dates(df):\n    # Convert timestamp column to datetime' reward=0.00 done=false error=null
+[STEP]  step=2 action="```python\ndef compare_dates(df):\n    df['timestamp'] = pd.to_datetime(df['timestamp'])\n    if df[" reward=0.00 done=false error=null
+[STEP]  step=3 action="```python\ndef compare_dates(df):\n    df['timestamp'] = pd.to_datetime(df['timestamp'])\n    if df[" reward=0.00 done=true error=null
+[END]   success=false steps=3 rewards=0.00,0.00,0.00
 
-[START] task=cr-easy-001 env=apex-engineering-benchmark model=Qwen2.5-72B
-[STEP]  step=1 action="This is an N+1 query problem. For each use..." reward=0.7600 done=true  error=None
-[END]   task=cr-easy-001 success=true  steps=1 score=0.7600 rewards=[0.76]
+[START] task=cr-easy-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
+[STEP]  step=1 action='### Code Review\n\n#### Bug Identification\nThe code suffers from an N+1 query problem. Specifically' reward=0.74 done=true error=null
+[END]   success=true steps=1 rewards=0.74
 
-[START] task=cr-medium-001 env=apex-engineering-benchmark model=Qwen2.5-72B
-[STEP]  step=1 action="There is a race condition between the cache..." reward=0.4800 done=false error=None
-[STEP]  step=2 action="The race condition occurs when two threads ..." reward=0.6900 done=true  error=None
-[END]   task=cr-medium-001 success=true  steps=2 score=0.5850 rewards=[0.48, 0.69]
+[START] task=cr-medium-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
+[STEP]  step=1 action='### Bug Identification:\nThe code has a **race condition** between the `get` and `set` operations. S' reward=0.88 done=true error=null
+[END]   success=true steps=1 rewards=0.88
 
-[START] task=cr-hard-001 env=apex-engineering-benchmark model=Qwen2.5-72B
-[STEP]  step=1 action="Bug 1: pickle.loads on untrusted cookie dat..." reward=0.3200 done=false error=None
-[STEP]  step=2 action="Three critical vulnerabilities: 1) Deserial..." reward=0.4500 done=false error=None
-[STEP]  step=3 action="Complete security audit: pickle deserializa..." reward=0.5800 done=true  error=None
----
+[START] task=cr-hard-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
+[STEP]  step=1 action='### Bug Identification:\nThe critical bug is the missing `filter` or `WHERE` clause in the `User.obj' reward=0.80 done=true error=null
+[END]   success=true steps=1 rewards=0.80
+
+[START] task=id-easy-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
+[STEP]  step=1 action='### Root Cause\nThe root cause of the login failures is a connection timeout in the auth service, wh' reward=0.90 done=true error=null
+[END]   success=true steps=1 rewards=0.90
+
+[START] task=id-medium-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
+[STEP]  step=1 action='### Incident Debug\n\n#### Root Cause\nThe root cause of the timeouts is that the database connectio' reward=0.70 done=false error=null
+[STEP]  step=2 action='### Incident Debug\n\n#### Root Cause\nThe root cause of the timeouts is that the database connectio' reward=0.45 done=true error=null
+[END]   success=true steps=2 rewards=0.70,0.45
+
+[START] task=id-hard-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
+[STEP]  step=1 action='### Root Cause Analysis and Fixes\n\n#### Step 1: Database Connection Pool Full\n**Root Cause:** The' reward=0.90 done=false error=null
+[STEP]  step=2 action='### Root Cause Analysis and Fixes\n\n#### Step 1: Database Connection Pool Full\n**Root Cause:** The' reward=0.80 done=false error=null
+[STEP]  step=3 action='### Root Cause Analysis and Fixes\n\n#### Step 1: Database Connection Pool Full\n**Root Cause:** The' reward=0.67 done=true error=null
+[END]   success=true steps=3 rewards=0.90,0.80,0.67
+
+================================================================================
+**Summary: 6/9 PASS (67%) | Domain: Code Review 3/3 | Incident Debug 3/3 | Data Pipeline 0/3**
+================================================================================
+```
 
 ## 🐳 Deploy & Run
 
