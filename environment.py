@@ -105,6 +105,22 @@ def delete_session(session_id: str) -> bool:
         return False
 
 
+def _get_incident_log_for_step(task: dict, step_num: int):
+    """
+    Return cumulative incident logs revealed up to step_num.
+    step_num=0 (at reset) shows step-1 log as initial context.
+    Each subsequent step reveals additional logs cumulatively.
+    """
+    steps = task.get("steps", [])
+    if not steps:
+        return None
+    reveal_up_to = max(1, step_num)
+    logs = []
+    for s in steps[:reveal_up_to]:
+        logs.append(f"=== Step {s['step']} Logs ===\n{s['log']}")
+    return "\n\n".join(logs) if logs else None
+
+
 class APEXEnvironment:
     """Core APEX environment - manages sessions and episodes"""
     
@@ -137,6 +153,12 @@ class APEXEnvironment:
         if not task:
             task = get_task(domain, "easy")
         
+        # Correct max_steps: incident_debug uses len(steps), others use task key
+        if domain == "incident_debug":
+            max_steps = max(1, len(task.get("steps", [])))
+        else:
+            max_steps = task.get("max_steps", 3)
+        
         # Create session state
         session_data = {
             "session_id": session_id,
@@ -148,7 +170,8 @@ class APEXEnvironment:
             "rewards": [],
             "step_scores": [],
             "done": False,
-            "history": []
+            "history": [],
+            "max_steps": max_steps,
         }
         
         # Store session in memory
@@ -165,6 +188,7 @@ class APEXEnvironment:
             "step_scores": [],
             "done": False,
             "history": [],
+            "max_steps": max_steps,
             "task_id": task.get("task_id", "unknown")
         })
         logger.info(f"Reset: session={session_id[:8]}... domain={domain} difficulty={difficulty}")
@@ -179,9 +203,9 @@ class APEXEnvironment:
             description=task.get("description", ""),
             data_sample=task.get("data_sample"),
             code_to_review=task.get("code_to_review"),
-            incident_log=task.get("incident_log"),
+            incident_log=_get_incident_log_for_step(task, 0) if domain == "incident_debug" else None,
             step_number=0,
-            max_steps=task.get("max_steps", 3),
+            max_steps=max_steps,
             passed_cases=0,
             total_cases=len(task.get("test_cases", [])) if domain == "data_pipeline" else 0,
             feedback=None,
@@ -246,7 +270,7 @@ class APEXEnvironment:
         session["step_scores"] = reward_info.step_scores or [reward_info.reward]
         
         # Check if done
-        done = reward_info.done or step_num >= task.get("max_steps", 3)
+        done = reward_info.done or step_num >= session.get("max_steps", 3)
         session["done"] = done
         
         # Store in history
@@ -261,10 +285,14 @@ class APEXEnvironment:
         obs = reward_info.observation
         obs.session_id = session_id
         obs.step_number = step_num
-        obs.max_steps = task.get("max_steps", 3)
+        obs.max_steps = session.get("max_steps", 3)
         obs.passed_cases = reward_info.passed_cases or 0
         obs.total_cases = reward_info.total_cases or 0
         obs.feedback = reward_info.feedback
+        
+        # For incident_debug, reveal cumulative incident_log up to current step
+        if domain == "incident_debug":
+            obs.incident_log = _get_incident_log_for_step(task, step_num)
         
         # Build info dict
         info = {

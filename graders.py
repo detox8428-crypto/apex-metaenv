@@ -236,9 +236,9 @@ class CodeReviewGrader:
         """
         if not review_text or len(review_text.strip()) < 20:
             return self._make_reward(
-                reward=0.2,
+                reward=0.0,
                 done=True,
-                feedback="Review too short - minimal credit awarded",
+                feedback="Review too short - no credit awarded",
                 task=task
             )
         
@@ -262,7 +262,7 @@ class CodeReviewGrader:
         
         # Weighted combination with floor
         base_reward = (prod_score * 0.6) + (tech_score * 0.4)
-        base_reward = max(0.25, min(1.0, base_reward))  # Floor at 0.25 for any review with keywords
+        base_reward = max(0.0, min(1.0, base_reward))  # Clip to valid range [0.0, 1.0]
         
         # Boost if comprehensive
         final_reward = base_reward
@@ -352,9 +352,8 @@ class IncidentDebugGrader:
         else:
             step_reward = 0.3
         
-        # Ensure minimum floor
-        step_reward = max(0.15, step_reward)
-        step_reward = min(1.0, step_reward)
+        # Ensure valid reward bounds
+        step_reward = max(0.0, min(1.0, step_reward))
         
         # Boost if comprehensive
         if len(diagnosis_text) > 100 and len(keywords_found) > len(expected_kw) / 2:
@@ -369,7 +368,7 @@ class IncidentDebugGrader:
         cumulative_reward = sum(all_scores) / len(all_scores) if all_scores else step_reward
         
         # Ensure reward bounds
-        cumulative_reward = max(0.15, min(1.0, cumulative_reward))
+        cumulative_reward = max(0.0, min(1.0, cumulative_reward))
         
         feedback = f"Step {step_num}/{len(steps)}: {len(keywords_found)}/{len(expected_kw)} keywords matched"
         
