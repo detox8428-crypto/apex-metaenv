@@ -283,6 +283,18 @@ def get_task(domain: str, difficulty: str) -> dict:
     return TASKS.get(domain, {}).get(difficulty, {})
 
 
+def get_task_by_id(task_id: str) -> tuple:
+    """
+    Get task by task_id string (e.g., 'easy-solve-001')
+    Returns (domain, difficulty, task) tuple, or (None, None, None) if not found
+    """
+    for domain, difficulties in TASKS.items():
+        for difficulty, task in difficulties.items():
+            if task.get("task_id") == task_id:
+                return domain, difficulty, task
+    return None, None, None
+
+
 def get_all_tasks(domain: str) -> dict:
     """Get all tasks for a domain"""
     return TASKS.get(domain, {})

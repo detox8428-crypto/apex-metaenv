@@ -4,7 +4,7 @@ Implements OpenEnv v1 specification
 Single worker mode for reliable session management
 """
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import logging
@@ -12,6 +12,7 @@ from typing import Optional
 
 from models import ResetRequest, ResetResponse, StepRequest, StepResponse
 from environment import APEXEnvironment
+from tasks import get_task_by_id
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -83,27 +84,41 @@ async def health_check():
 
 @app.post("/reset", response_model=ResetResponse)
 async def reset_env(
-    domain: str = Query(default="data_pipeline"),
-    difficulty: str = Query(default="easy"),
+    domain: str = Query(default=None),
+    difficulty: str = Query(default=None),
     mode: str = Query(default="solve"),
-    body: Optional[ResetRequest] = None
+    body: Optional[ResetRequest] = Body(None)
 ):
     """
     Reset environment (OpenEnv spec)
     
-    Supports query parameters:
-    - POST /reset?domain=data_pipeline&difficulty=easy
-    - POST /reset?domain=code_review&difficulty=medium
-    
-    Also accepts JSON body for flexibility
+    Supports multiple request formats:
+    1. Query params: POST /reset?domain=data_pipeline&difficulty=easy
+    2. JSON body with task_id: POST /reset with {"task": "easy-solve-001"}
+    3. JSON body with domain/difficulty: POST /reset with {"domain": "data_pipeline", "difficulty": "easy"}
     """
     try:
-        # Accept both query params and JSON body
         d = domain
         diff = difficulty
+        
+        # Handle body parameters
         if body:
-            d = body.domain or domain
-            diff = body.difficulty or difficulty
+            # If task_id is provided, look it up
+            if body.task:
+                domain_val, difficulty_val, task = get_task_by_id(body.task)
+                if domain_val is None:
+                    raise HTTPException(status_code=404, detail=f"Task '{body.task}' not found")
+                d = domain_val
+                diff = difficulty_val
+            else:
+                # Otherwise use domain/difficulty from body
+                d = body.domain or d or "data_pipeline"
+                diff = body.difficulty or diff or "easy"
+                mode = body.mode or mode
+        else:
+            # Use query parameters with defaults
+            d = d or "data_pipeline"
+            diff = diff or "easy"
         
         # Reset environment
         session_id, observation = env.reset(domain=d, difficulty=diff, mode=mode)
@@ -125,6 +140,8 @@ async def reset_env(
             "session_id": session_id,
             "observation": observation
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Reset error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

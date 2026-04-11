@@ -27,7 +27,7 @@ class DataPipelineGrader:
         """
         if not code or len(code.strip()) < 5:
             return self._make_reward(
-                reward=0.1,
+                reward=0.0,
                 done=False,
                 passed=0,
                 total=len(task.get("test_cases", [])),
@@ -120,7 +120,7 @@ class DataPipelineGrader:
         # Calculate reward with strict bounds
         if passed_cases == 0:
             # No test cases passed - low reward floor
-            base_reward = 0.1
+            base_reward = 0.0
         elif passed_cases < total_cases:
             # Partial credit - between 0.3 and 0.8
             base_reward = 0.3 + (0.5 * (passed_cases / total_cases))
@@ -323,12 +323,12 @@ class IncidentDebugGrader:
         
         if not diagnosis_text or len(diagnosis_text.strip()) < 5:
             return self._make_reward(
-                reward=0.15,
+                reward=0.0,
                 done=False,
                 step_num=step_num,
                 feedback="Diagnosis too short",
                 task=task,
-                step_scores=[0.15]
+                step_scores=[0.0]
             )
         
         diagnosis_lower = diagnosis_text.lower()

@@ -66,8 +66,9 @@ class RewardInfo(BaseModel):
 
 class ResetRequest(BaseModel):
     """Reset request body"""
-    domain: str = Field(default="data_pipeline", description="data_pipeline, code_review, or incident_debug")
-    difficulty: str = Field(default="easy", description="easy, medium, or hard")
+    task: Optional[str] = Field(None, description="Direct task ID lookup (e.g., 'easy-solve-001')")
+    domain: Optional[str] = Field(None, description="data_pipeline, code_review, or incident_debug")
+    difficulty: Optional[str] = Field(None, description="easy, medium, or hard")
     mode: str = Field(default="solve", description="solve or review")
 
 
