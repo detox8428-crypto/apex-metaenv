@@ -2,18 +2,24 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install dependencies first (layer cache)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy app
+# Copy all source files
 COPY . .
 
-# Run
-EXPOSE 7860
-ENV HOST=0.0.0.0
-ENV PORT=7860
+# HuggingFace Spaces runs as non-root user 1000
+RUN useradd -m -u 1000 user && chown -R user:user /app
+USER user
 
-# Start with single worker to avoid multi-process session issues
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
+EXPOSE 7860
+
+# Run the APEX main server — NOT app_gradio.py
+CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
 

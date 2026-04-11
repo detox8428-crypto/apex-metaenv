@@ -497,6 +497,79 @@ def main():
     uvicorn.run("app:app", host="0.0.0.0", port=port, workers=1)
 
 
+# ── Optional Gradio UI mounted at /ui ────────────────────────────────────────
+import os
+if os.getenv("ENABLE_GRADIO_UI", "true").lower() == "true":
+    try:
+        import gradio as gr
+
+        with gr.Blocks(title="APEX Engineering Benchmark") as _demo:
+            gr.Markdown("""
+            # 🏗️ APEX Engineering Benchmark
+            **Real-world RL environment** — data pipelines · code review · incident debugging
+            
+            Use the REST API below or interact manually here.
+            """)
+            with gr.Row():
+                domain_dd = gr.Dropdown(
+                    ["data_pipeline", "code_review", "incident_debug"],
+                    value="data_pipeline", label="Domain"
+                )
+                diff_dd = gr.Dropdown(
+                    ["easy", "medium", "hard"],
+                    value="easy", label="Difficulty"
+                )
+                reset_btn = gr.Button("Load Task")
+            obs_display = gr.Markdown("Click **Load Task** to begin.")
+            
+            code_input = gr.Textbox(
+                lines=12, label="Your solution (code / review / diagnosis)",
+                placeholder="Write your solution here..."
+            )
+            submit_btn = gr.Button("Submit")
+            result_display = gr.Markdown("")
+
+            _session = {"id": None, "domain": "data_pipeline"}
+
+            def _reset(domain, difficulty):
+                import requests
+                r = requests.post(
+                    "http://localhost:7860/reset",
+                    json={"domain": domain, "difficulty": difficulty}
+                ).json()
+                _session["id"] = r.get("session_id")
+                _session["domain"] = domain
+                obs = r.get("observation", {})
+                return (
+                    f"**Task:** {obs.get('title','')}\n\n"
+                    f"**Description:** {obs.get('description','')}\n\n"
+                    f"**Step:** {obs.get('step_number',0)}/{obs.get('max_steps',3)}"
+                )
+
+            def _step(code):
+                if not _session["id"]:
+                    return "Load a task first."
+                import requests
+                domain = _session["domain"]
+                key = "code" if domain == "data_pipeline" else ("review" if domain == "code_review" else "diagnosis")
+                r = requests.post(
+                    "http://localhost:7860/step",
+                    json={"session_id": _session["id"], key: code}
+                ).json()
+                reward = r.get("reward", 0)
+                done   = r.get("done", False)
+                fb     = r.get("feedback", "")
+                return f"**Reward:** {reward:.3f}  |  **Done:** {done}\n\n**Feedback:** {fb}"
+
+            reset_btn.click(_reset, [domain_dd, diff_dd], obs_display)
+            submit_btn.click(_step, code_input, result_display)
+
+        app = gr.mount_gradio_app(app, _demo, path="/ui")
+        print("✅ Gradio UI mounted at /ui", flush=True)
+    except ImportError:
+        print("ℹ️  Gradio not installed — UI disabled", flush=True)
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 7860))

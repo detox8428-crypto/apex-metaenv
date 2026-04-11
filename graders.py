@@ -99,7 +99,7 @@ class DataPipelineGrader:
         
         except SyntaxError as e:
             return self._make_reward(
-                reward=0.1,
+                reward=0.0,
                 done=False,
                 passed=0,
                 total=total_cases,
