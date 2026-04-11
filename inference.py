@@ -3,7 +3,7 @@ import requests
 from openai import OpenAI
 
 # ── Env vars ─────────────────────────────────────────────────────────────────
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME", "gpt-4o-mini")
 HF_TOKEN     = os.getenv("HF_TOKEN")
 SPACE_URL    = os.getenv("SPACE_URL", "https://shaikb-apex.hf.space")
