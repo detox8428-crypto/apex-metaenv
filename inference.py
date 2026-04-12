@@ -40,7 +40,7 @@ RULES (follow exactly):
 Task-specific function names:
 - easy task: def aggregate_sales(df) — group by customer_id, sum amount, return sorted Series
 - medium task: def clean_transactions(df) — drop_duplicates(), fillna(0), return cleaned DataFrame
-- hard task: def compare_dates(df) — handle mixed tz-aware/naive timestamps, return DataFrame
+- hard task: def compare_dates(df) — use pd.to_datetime(df['timestamp'], utc=True, errors='coerce') to normalize ALL timestamps to UTC-aware, return full DataFrame with all original columns
 
 Always match the exact function name from the task description."""
 
@@ -75,9 +75,12 @@ def build_prompt(obs: dict, domain: str, step: int) -> tuple[str, str]:
         examples = obs.get("examples", "")
         constraints = obs.get("constraints", "")
         desc     = obs.get("description", "")
+        data     = obs.get("data_sample", "")
         fb       = obs.get("feedback", "")
 
         user = f"TASK:\n{desc}\n\nFUNCTION SIGNATURE TO IMPLEMENT:\n{sig}"
+        if data:
+            user += f"\n\nSAMPLE INPUT DATA:\n{data}"
         if examples:
             user += f"\n\nEXAMPLES:\n{examples}"
         if constraints:
