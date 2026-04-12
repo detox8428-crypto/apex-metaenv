@@ -1,21 +1,6 @@
----
-title: APEX Engineering Benchmark
-emoji: 🏗️
-colorFrom: purple
-colorTo: blue
-sdk: docker
-app_file: app.py
-pinned: false
-license: mit
-tags:
-  - openenv
-  - reinforcement-learning
-  - engineering
-  - real-world
-  - rl-benchmark
----
 
-# 🏗️ APEX Engineering Benchmark
+
+#  APEX Engineering Benchmark
 
 > The RL benchmark where agents learn to think like senior engineers.
 
