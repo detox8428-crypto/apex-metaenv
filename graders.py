@@ -10,7 +10,7 @@ from models import RewardInfo, Observation
 
 # Phase 2 compliance: all rewards must be strictly in (0, 1)
 def safe_score(x: float) -> float:
-    return max(0.01, min(0.99, float(x)))
+    return max(0.02, min(0.98, float(x)))
 
 
 class DataPipelineGrader:
