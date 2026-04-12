@@ -491,10 +491,8 @@ async def startup_event():
 # ============================================================================
 
 def main():
-    """Entry point for running the server as a callable from entry points."""
-    import uvicorn
-    port = int(os.environ.get("PORT", 7860))
-    uvicorn.run(app, host="0.0.0.0", port=port, workers=1)
+    """Entry point — returns the app for uvicorn to serve."""
+    return app
 
 
 # ── Optional Gradio UI mounted at /ui ────────────────────────────────────────
