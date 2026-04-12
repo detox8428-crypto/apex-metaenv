@@ -364,11 +364,14 @@ class IncidentDebugGrader:
         else:
             expected_kw = []
         
-        # Find keywords in response
-        keywords_found = [
-            kw for kw in expected_kw
-            if kw.lower() in diagnosis_lower
-        ]
+        # Find keywords in response using word-level matching (more flexible)
+        keywords_found = []
+        for kw in expected_kw:
+            kw_words = set(kw.lower().split())
+            diagnosis_words = set(diagnosis_lower.split())
+            # Match if all words of keyword are present in diagnosis
+            if kw_words.issubset(diagnosis_words):
+                keywords_found.append(kw)
         
         if expected_kw:
             step_reward = len(keywords_found) / len(expected_kw)
