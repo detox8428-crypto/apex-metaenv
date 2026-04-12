@@ -10,7 +10,10 @@ from models import RewardInfo, Observation
 
 # Phase 2 compliance: all rewards must be strictly in (0, 1)
 def safe_score(x: float) -> float:
-    return max(0.02, min(0.98, float(x)))
+    x = float(x)
+    if x <= 0: return 0.001
+    if x >= 1: return 0.999
+    return max(0.001, min(0.999, x))
 
 
 class DataPipelineGrader:
@@ -29,8 +32,8 @@ class DataPipelineGrader:
 
         # Strip markdown code fences
         import re as _re
-        code = _re.sub(r"^```(?:python)?\s*", "", code.strip())
-        code = _re.sub(r"```\s*$", "", code.strip())
+        code = _re.sub(r"^`(?:python)?\s*", "", code.strip())
+        code = _re.sub(r"`\s*$", "", code.strip())
         code = code.strip()
 
         passed_cases = 0
@@ -87,7 +90,7 @@ class DataPipelineGrader:
 
         except SyntaxError as e:
             return self._make_reward(
-                reward=0.02,
+                reward=0.05,
                 done=False,
                 passed=0,
                 total=total_cases,
@@ -119,7 +122,7 @@ class DataPipelineGrader:
                 efficiency_bonus = 0.05
 
         if passed_cases == total_cases and efficiency_bonus > 0.05:
-            final_reward = 0.98
+            final_reward = 0.97
         elif passed_cases == total_cases:
             final_reward = 0.94
         else:
