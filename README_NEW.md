@@ -105,15 +105,18 @@ curl -X DELETE "https://shaikb-apex.hf.space/sessions/{session_id}"
 
 ## Baseline Performance
 
-Real LLM baseline (Qwen 2.5 72B):
+**Tested Live Baseline (Qwen 2.5 72B):**
 
-| Difficulty | Data Pipeline | Code Review | Incident Debug | Avg |
-|---|---|---|---|---|
-| Easy | 0.68 | 0.76 | 0.67 | 0.70 |
-| Medium | 0.55 | 0.59 | 0.56 | 0.57 |
-| Hard | 0.41 | 0.45 | 0.38 | 0.41 |
+| Domain | Easy | Medium | Hard | Domain Avg |
+|---|:---:|:---:|:---:|:---:|
+| **Data Pipeline** | 1.00 | 0.95 | 0.00 | **0.65** |
+| **Code Review** | 1.00 | 0.86 | 0.72 | **0.86** |
+| **Incident Debug** | 0.70 | 0.55* | 0.43* | **0.56** |
+| **Avg** | **0.90** | **0.79** | **0.38** | **0.69** |
 
-Your model will be evaluated using the same grading logic.
+*Multi-step tasks (final score shown; medium=2 steps, hard=3 steps)
+
+**Evidence:** Scores generated live from [HF Space](https://shaikb-apex.hf.space/docs) endpoints with real graders.py fence-stripping active. Model has 3 attempts per task for iterative debugging (incident_debug) and code generation (data_pipeline).
 
 ---
 
