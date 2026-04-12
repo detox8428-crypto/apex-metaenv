@@ -214,7 +214,7 @@ class DataPipelineGrader:
         return RewardInfo(
             session_id="session",
             task_id=task.get("task_id", "unknown"),
-            reward=max(0.0, min(1.0, reward)),
+            reward=max(0.01, min(0.99, reward)),
             done=done,
             observation=Observation(
                 session_id="session",
@@ -313,7 +313,7 @@ class CodeReviewGrader:
         return RewardInfo(
             session_id="session",
             task_id=task.get("task_id", "unknown"),
-            reward=max(0.0, min(1.0, reward)),
+            reward=max(0.01, min(0.99, reward)),
             done=done,
             observation=Observation(
                 session_id="session",
@@ -415,7 +415,7 @@ class IncidentDebugGrader:
         return RewardInfo(
             session_id="session",
             task_id=task.get("task_id", "unknown"),
-            reward=max(0.0, min(1.0, reward)),
+            reward=max(0.01, min(0.99, reward)),
             done=done,
             observation=Observation(
                 session_id="session",
