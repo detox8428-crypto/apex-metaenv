@@ -332,22 +332,22 @@ curl "https://shaikb-apex.hf.space/tasks"
 
 ```json
 {
-  "total_tasks": 29,
+  "total_tasks": 9,
   "domains": {
     "data_pipeline": {
       "description": "Fix broken data pipelines in production",
       "difficulties": ["easy", "medium", "hard"],
-      "tasks": 10
+      "tasks": 3
     },
     "code_review": {
       "description": "Review code at scale and identify bugs",
       "difficulties": ["easy", "medium", "hard"],
-      "tasks": 10
+      "tasks": 3
     },
     "incident_debug": {
       "description": "Diagnose and fix production incidents",
       "difficulties": ["easy", "medium", "hard"],
-      "tasks": 9
+      "tasks": 3
     }
   }
 }
@@ -521,7 +521,7 @@ APEX/
 ├── models.py           # Pydantic v2 typed models: Observation, Action, RewardInfo
 ├── environment.py      # Session management and episode logic
 ├── graders.py          # Deterministic reward calculators (3 domain graders)
-├── tasks.py            # 29 task definitions across 3 domains
+├── tasks.py            # 9 task definitions across 3 domains
 ├── inference.py        # Baseline benchmark runner — [START][STEP][END] format
 ├── openenv.yaml        # OpenEnv spec metadata
 ├── Dockerfile          # Verified — 2 vCPU / 8GB RAM compatible
@@ -552,7 +552,7 @@ All agent-submitted code runs in a **restricted sandbox**:
 | `GET /state` returns session state | ✅ |
 | OpenEnv spec: typed Pydantic models | ✅ |
 | `openenv.yaml` present and valid | ✅ |
-| 3+ tasks with graders scoring 0.0–1.0 | ✅ 29 tasks |
+| 3+ tasks with graders scoring 0.0–1.0 | ✅ 9 tasks |
 | Graders are deterministic | ✅ |
 | Difficulty progression easy → medium → hard | ✅ |
 | Reward provides partial progress signal | ✅ Never binary |
@@ -616,7 +616,7 @@ APEX/
 ├── models.py           # Pydantic v2 typed models: Observation, Action, RewardInfo
 ├── environment.py      # Session management and episode logic
 ├── graders.py          # Deterministic reward calculators (3 domain graders)
-├── tasks.py            # 29 task definitions across 3 domains
+├── tasks.py            # 9 task definitions across 3 domains
 ├── inference.py        # Baseline benchmark runner — [START][STEP][END] format
 ├── openenv.yaml        # OpenEnv spec metadata
 ├── Dockerfile          # Verified — 2 vCPU / 8GB RAM compatible
@@ -647,7 +647,7 @@ All agent-submitted code runs in a **restricted sandbox**:
 | `GET /state` returns session state | ✅ |
 | OpenEnv spec: typed Pydantic models | ✅ |
 | `openenv.yaml` present and valid | ✅ |
-| 3+ tasks with graders scoring 0.0–1.0 | ✅ 29 tasks |
+| 3+ tasks with graders scoring 0.0–1.0 | ✅ 9 tasks |
 | Graders are deterministic | ✅ |
 | Difficulty progression easy → medium → hard | ✅ |
 | Reward provides partial progress signal | ✅ Never binary |
@@ -759,7 +759,7 @@ APEX/
 ├── models.py           # Pydantic v2 typed models: Observation, Action, RewardInfo
 ├── environment.py      # Session management, episode logic
 ├── graders.py          # Domain-specific deterministic reward calculators
-├── tasks.py            # 29 task definitions across 3 domains
+├── tasks.py            # 9 task definitions across 3 domains
 ├── inference.py        # Benchmark runner — [START][STEP][END] log format
 ├── openenv.yaml        # OpenEnv spec compliance metadata
 ├── Dockerfile          # Verified build — 2 vCPU / 8GB RAM compatible
@@ -784,38 +784,38 @@ Agent-submitted code runs in a restricted sandbox:
 ```yaml
 spec_version: 1
 name: apex-engineering-benchmark
-version: "3.0.0"
-description: >
-  Multi-turn RL benchmark for real engineering tasks.
-  Tests code-capable LLMs on 3 domains: data pipelines, production code review, and incident debugging.
-  
-  Domains:
-  - data_pipeline: 11 tasks
-  - code_review: 9 tasks
-  - incident_debug: 9 tasks
-type: rl-environment
-runtime: docker
-app: app_gradio.py
+type: space
+runtime: fastapi
+app: app:app
 port: 7860
-tagline: "The multi-turn RL benchmark for real engineering tasks"
-benchmarks:
-  - name: data_pipeline
-    description: "Write, review, and debug data pipelines using pandas, CSV, JSON, ETL"
-    tasks: 11
-    difficulties: [easy, medium, hard]
-  - name: code_review
-    description: "Review production code for architectural issues, explain production impact"
-    tasks: 9
-    difficulties: [easy, medium, hard]
-  - name: incident_debug
-    description: "Debug multi-step incidents as SRE with logs and metrics"
-    tasks: 9
-    difficulties: [easy, medium, hard]
-total_tasks: 29
-use_cases:
-  - Benchmark code-capable LLMs on real engineering work
-  - Train RL agents as engineering copilots
-  - Evaluate multi-turn reasoning
+tasks:
+  - id: easy-solve-001
+    difficulty: easy
+    domain: data_pipeline
+  - id: medium-solve-001
+    difficulty: medium
+    domain: data_pipeline
+  - id: hard-solve-001
+    difficulty: hard
+    domain: data_pipeline
+  - id: cr-easy-001
+    difficulty: easy
+    domain: code_review
+  - id: cr-medium-001
+    difficulty: medium
+    domain: code_review
+  - id: cr-hard-001
+    difficulty: hard
+    domain: code_review
+  - id: id-easy-001
+    difficulty: easy
+    domain: incident_debug
+  - id: id-medium-001
+    difficulty: medium
+    domain: incident_debug
+  - id: id-hard-001
+    difficulty: hard
+    domain: incident_debug
 ```
 
 ---

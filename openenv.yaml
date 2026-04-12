@@ -1,13 +1,8 @@
 spec_version: 1
 name: apex-engineering-benchmark
-version: "3.0.0"
-description: >
-  Multi-turn RL benchmark for real engineering tasks.
-  Agents debug production incidents, review code, and fix data pipelines
-  across 3 domains and 9 tasks with partial-credit rewards.
-type: rl-environment
-runtime: docker
-app_file: app.py
+type: space
+runtime: fastapi
+app: app:app
 port: 7860
 tags:
   - openenv
