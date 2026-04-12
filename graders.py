@@ -27,7 +27,7 @@ class DataPipelineGrader:
         """
         if not code or len(code.strip()) < 5:
             return self._make_reward(
-                reward=0.0,
+                $count++; "reward=0.01,"
                 done=False,
                 passed=0,
                 total=len(task.get("test_cases", [])),
@@ -111,7 +111,7 @@ class DataPipelineGrader:
         
         except SyntaxError as e:
             return self._make_reward(
-                reward=0.0,
+                $count++; "reward=0.01,"
                 done=False,
                 passed=0,
                 total=total_cases,
@@ -259,7 +259,7 @@ class CodeReviewGrader:
         """
         if not review_text or len(review_text.strip()) < 20:
             return self._make_reward(
-                reward=0.0,
+                $count++; "reward=0.01,"
                 done=True,
                 feedback="Review too short - no credit awarded",
                 task=task
@@ -346,7 +346,7 @@ class IncidentDebugGrader:
         
         if not diagnosis_text or len(diagnosis_text.strip()) < 5:
             return self._make_reward(
-                reward=0.0,
+                $count++; "reward=0.01,"
                 done=False,
                 step_num=step_num,
                 feedback="Diagnosis too short",

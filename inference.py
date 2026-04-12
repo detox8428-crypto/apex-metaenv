@@ -196,7 +196,7 @@ def run_task(client, task: dict):
             body         = action_body(domain, session_id, agent_text)
 
             step_res = call_env("POST", "/step", json=body)
-            reward   = float(step_res.get("reward", 0.0))
+            reward   = float(step_res.get("reward", 0.01))
             done     = bool(step_res.get("done", False))
             error    = step_res.get("error", None)
             obs      = step_res.get("observation", {})
@@ -211,13 +211,13 @@ def run_task(client, task: dict):
             log_step(step=step, action=agent_text,
                      reward=reward, done=done, error=error)
 
-        avg     = sum(rewards) / len(rewards) if rewards else 0.0
+        avg     = sum(rewards) / len(rewards) if rewards else 0.01
         success = avg >= 0.5
 
     except Exception as exc:
         print(f"[DEBUG] task {task_id} failed: {exc}", flush=True)
         if not rewards:
-            rewards = [0.0]
+            rewards = [0.01]
 
     finally:
         if session_id:
