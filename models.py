@@ -53,7 +53,7 @@ class RewardInfo(BaseModel):
     """Reward information - returned by step()"""
     session_id: str
     task_id: str
-    reward: float = Field(..., ge=0.02, le=0.98, description="Reward (0, 1)")
+    reward: float = Field(..., gt=0.0, lt=1.0, description="Reward (0, 1)")
     done: bool = Field(..., description="Is episode finished?")
     observation: Observation = Field(..., description="Updated observation")
     passed_cases: Optional[int] = Field(None, description="Test cases passed")
@@ -68,7 +68,7 @@ class RewardInfo(BaseModel):
     def clamp_step_scores(cls, v):
         if v is None:
             return v
-        return [round(max(0.02, min(0.98, float(s))), 4) for s in v]
+        return [max(0.001, min(0.999, float(s))) for s in v]
 
 
 class ResetRequest(BaseModel):
@@ -97,7 +97,7 @@ class StepResponse(BaseModel):
     """Step response body"""
     session_id: str
     observation: Observation
-    reward: float = Field(..., ge=0.02, le=0.98)
+    reward: float = Field(..., gt=0.0, lt=1.0)
     done: bool
     passed_cases: Optional[int] = None
     total_cases: Optional[int] = None
@@ -107,7 +107,7 @@ class StepResponse(BaseModel):
     @field_validator('reward', mode='before')
     @classmethod
     def clamp_reward(cls, v):
-        return round(max(0.02, min(0.98, float(v))), 4)
+        return max(0.001, min(0.999, float(v)))
 
     @field_validator('info', mode='before')
     @classmethod
@@ -115,9 +115,9 @@ class StepResponse(BaseModel):
         if isinstance(v, dict):
             # Clamp ALL numeric reward fields inside info
             if 'reward' in v:
-                v['reward'] = round(max(0.02, min(0.98, float(v['reward']))), 4)
+                v['reward'] = max(0.001, min(0.999, float(v['reward'])))
             if 'rewards' in v:
-                v['rewards'] = [round(max(0.02, min(0.98, float(r))), 4) for r in v['rewards']]
+                v['rewards'] = [max(0.001, min(0.999, float(r))) for r in v['rewards']]
             if 'step_scores' in v:
-                v['step_scores'] = [round(max(0.02, min(0.98, float(s))), 4) for s in v['step_scores']]
+                v['step_scores'] = [max(0.001, min(0.999, float(s))) for s in v['step_scores']]
         return v

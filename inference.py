@@ -154,16 +154,16 @@ def log_start(task: str, model: str):
     print(f"[START] task={task} env={BENCHMARK} model={model}", flush=True)
 
 def log_step(step: int, action: str, reward: float, done: bool, error):
-    reward = round(max(0.02, min(0.98, float(reward))), 2)
+    reward = max(0.001, min(0.999, float(reward)))
     a = repr(action.replace("\n", "\\n")[:120])
     d = "true" if done else "false"
     e = "null" if error is None else str(error)
-    print(f"[STEP]  step={step} action={a} reward={reward:.2f} done={d} error={e}", flush=True)
+    print(f"[STEP]  step={step} action={a} reward={reward:.4f} done={d} error={e}", flush=True)
 
 def log_end(success: bool, steps: int, rewards: list):
     s = "true" if success else "false"
-    clamped = [round(max(0.02, min(0.98, float(x))), 2) for x in rewards]
-    r = ",".join(f"{x:.2f}" for x in clamped)
+    clamped = [max(0.001, min(0.999, float(x))) for x in rewards]
+    r = ",".join(f"{x:.4f}" for x in clamped)
     print(f"[END]   success={s} steps={steps} rewards={r}", flush=True)
 
 
