@@ -494,7 +494,7 @@ def main():
     """Entry point for running the server as a callable from entry points."""
     import uvicorn
     port = int(os.environ.get("PORT", 7860))
-    uvicorn.run("app:app", host="0.0.0.0", port=port, workers=1)
+    uvicorn.run(app, host="0.0.0.0", port=port, workers=1)
 
 
 # ── Optional Gradio UI mounted at /ui ────────────────────────────────────────
