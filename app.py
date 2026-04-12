@@ -486,17 +486,6 @@ async def startup_event():
 
 
 
-# ============================================================================
-# ENTRY POINT FOR SCRIPT
-# ============================================================================
-
-def main():
-    """Entry point for running the server as a callable from entry points."""
-    import uvicorn
-    port = int(os.environ.get("PORT", 7860))
-    uvicorn.run("app:app", host="0.0.0.0", port=port, workers=1)
-
-
 # ── Optional Gradio UI mounted at /ui ────────────────────────────────────────
 import os
 if os.getenv("ENABLE_GRADIO_UI", "true").lower() == "true":
@@ -570,7 +559,11 @@ if os.getenv("ENABLE_GRADIO_UI", "true").lower() == "true":
         print("ℹ️  Gradio not installed — UI disabled", flush=True)
 
 
-if __name__ == "__main__":
+def main():
+    """Entry point - called by openenv validator via app:main"""
     import uvicorn
     port = int(os.environ.get("PORT", 7860))
-    uvicorn.run(app, host="0.0.0.0", port=port, workers=1)
+    uvicorn.run("app:app", host="0.0.0.0", port=port, workers=1)
+
+if __name__ == "__main__":
+    main()

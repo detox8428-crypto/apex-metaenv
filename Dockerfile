@@ -21,5 +21,5 @@ USER user
 EXPOSE 7860
 
 # Run the APEX main server — NOT app_gradio.py
-CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
+CMD ["python", "app.py"]
 
