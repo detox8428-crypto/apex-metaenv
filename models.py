@@ -65,18 +65,10 @@ class RewardInfo(BaseModel):
 
     @field_validator('step_scores', mode='before')
     @classmethod
-    def validate_step_scores(cls, v):
-        """Ensure all step_scores elements are within [0.02, 0.98]"""
+    def clamp_step_scores(cls, v):
         if v is None:
             return v
-        if not isinstance(v, list):
-            raise ValueError('step_scores must be a list or None')
-        for i, score in enumerate(v):
-            if not isinstance(score, (int, float)):
-                raise ValueError(f'step_scores[{i}] must be numeric, got {type(score).__name__}')
-            if score < 0.02 or score > 0.98:
-                raise ValueError(f'step_scores[{i}]={score} must be in [0.02, 0.98]')
-        return v
+        return [round(max(0.02, min(0.98, float(s))), 4) for s in v]
 
 
 class ResetRequest(BaseModel):
@@ -105,9 +97,21 @@ class StepResponse(BaseModel):
     """Step response body"""
     session_id: str
     observation: Observation
-    reward: float
+    reward: float = Field(..., ge=0.02, le=0.98)
     done: bool
     passed_cases: Optional[int] = None
     total_cases: Optional[int] = None
     feedback: str
     info: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator('reward', mode='before')
+    @classmethod
+    def clamp_reward(cls, v):
+        return round(max(0.02, min(0.98, float(v))), 4)
+
+    @field_validator('info', mode='before')
+    @classmethod
+    def clamp_info_scores(cls, v):
+        if isinstance(v, dict) and 'step_scores' in v:
+            v['step_scores'] = [round(max(0.02, min(0.98, float(s))), 4) for s in v['step_scores']]
+        return v
