@@ -53,7 +53,7 @@ class RewardInfo(BaseModel):
     """Reward information - returned by step()"""
     session_id: str
     task_id: str
-    reward: float = Field(..., ge=0.01, le=0.99, description="Reward (0, 1)")
+    reward: float = Field(..., ge=0.02, le=0.98, description="Reward (0, 1)")
     done: bool = Field(..., description="Is episode finished?")
     observation: Observation = Field(..., description="Updated observation")
     passed_cases: Optional[int] = Field(None, description="Test cases passed")

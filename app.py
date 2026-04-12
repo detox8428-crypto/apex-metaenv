@@ -420,7 +420,7 @@ async def manifest():
         "difficulty_levels": ["easy", "medium", "hard"],
         "action_space": "Text (code/reviews/diagnoses)",
         "observation_space": "Dict with task_id, domain, difficulty, prompt, context",
-        "reward_range": [0.01, 0.99],
+        "reward_range": [0.02, 0.98],
         "api_endpoints": {
             "reset": {"method": "POST", "path": "/reset", "description": "Start new episode"},
             "step": {"method": "POST", "path": "/step", "description": "Submit action"},

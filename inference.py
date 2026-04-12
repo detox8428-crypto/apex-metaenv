@@ -154,6 +154,7 @@ def log_start(task: str, model: str):
     print(f"[START] task={task} env={BENCHMARK} model={model}", flush=True)
 
 def log_step(step: int, action: str, reward: float, done: bool, error):
+    reward = round(max(0.02, min(0.98, float(reward))), 2)
     a = repr(action.replace("\n", "\\n")[:120])
     d = "true" if done else "false"
     e = "null" if error is None else str(error)
@@ -161,7 +162,8 @@ def log_step(step: int, action: str, reward: float, done: bool, error):
 
 def log_end(success: bool, steps: int, rewards: list):
     s = "true" if success else "false"
-    r = ",".join(f"{x:.2f}" for x in rewards)
+    clamped = [round(max(0.02, min(0.98, float(x))), 2) for x in rewards]
+    r = ",".join(f"{x:.2f}" for x in clamped)
     print(f"[END]   success={s} steps={steps} rewards={r}", flush=True)
 
 
@@ -196,7 +198,7 @@ def run_task(client, task: dict):
             body         = action_body(domain, session_id, agent_text)
 
             step_res = call_env("POST", "/step", json=body)
-            reward   = float(step_res.get("reward", 0.01))
+            reward   = float(step_res.get("reward", 0.05))
             done     = bool(step_res.get("done", False))
             error    = step_res.get("error", None)
             obs      = step_res.get("observation", {})
@@ -211,13 +213,13 @@ def run_task(client, task: dict):
             log_step(step=step, action=agent_text,
                      reward=reward, done=done, error=error)
 
-        avg     = sum(rewards) / len(rewards) if rewards else 0.01
+        avg     = sum(rewards) / len(rewards) if rewards else 0.05
         success = avg >= 0.5
 
     except Exception as exc:
         print(f"[DEBUG] task {task_id} failed: {exc}", flush=True)
         if not rewards:
-            rewards = [0.01]
+            rewards = [0.05]
 
     finally:
         if session_id:
