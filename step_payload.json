@@ -1,0 +1,4 @@
+﻿{
+  "session_id": "603062b5-3d27-49de-873a-3923eab871fc",
+  "code": "def compare_dates(df):\n    import datetime\n    return len(df)"
+}
