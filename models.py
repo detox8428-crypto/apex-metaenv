@@ -3,7 +3,7 @@ APEX Engineering Benchmark - Pydantic v2 Models
 Type-safe request/response models for OpenEnv spec
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any, List
 from enum import Enum
 
@@ -62,6 +62,21 @@ class RewardInfo(BaseModel):
     step_scores: Optional[List[float]] = Field(None, description="Per-step scores (incident_debug)")
     feedback: str = Field(..., description="Human-readable feedback")
     info: Dict[str, Any] = Field(default_factory=dict, description="Additional info")
+
+    @field_validator('step_scores', mode='before')
+    @classmethod
+    def validate_step_scores(cls, v):
+        """Ensure all step_scores elements are within [0.02, 0.98]"""
+        if v is None:
+            return v
+        if not isinstance(v, list):
+            raise ValueError('step_scores must be a list or None')
+        for i, score in enumerate(v):
+            if not isinstance(score, (int, float)):
+                raise ValueError(f'step_scores[{i}] must be numeric, got {type(score).__name__}')
+            if score < 0.02 or score > 0.98:
+                raise ValueError(f'step_scores[{i}]={score} must be in [0.02, 0.98]')
+        return v
 
 
 class ResetRequest(BaseModel):
