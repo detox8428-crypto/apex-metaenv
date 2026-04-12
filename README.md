@@ -388,11 +388,11 @@ curl "https://shaikb-apex.hf.space/health"
 | Domain | Easy | Medium | Hard | Domain Avg | Pass Rate |
 |--------|:----:|:------:|:----:|:----------:|:---------:|
 | **Data Pipeline** | 1.00 | 0.95 | 0.95 | **0.97** | 3/3 (100%) |
-| **Code Review** | 0.91 | 0.86 | 0.72 | **0.83** | 3/3 (100%) |
-| **Incident Debug** | 0.90 | 0.68* | 0.57* | **0.72** | 3/3 (100%) |
-| **Overall** | **0.94** | **0.80** | **0.75** | **0.84** | **9/9 (100%)** |
+| **Code Review** | 1.00 | 0.86 | 0.80 | **0.89** | 3/3 (100%) |
+| **Incident Debug** | 0.90 | 1.00* | 0.90* | **0.93** | 3/3 (100%) |
+| **Overall** | **0.97** | **0.90** | **0.88** | **0.93** | **9/9 (100%)** |
 
-*Multi-step episode rewards (final score per episode): id-medium [0.90,0.45]→0.68, id-hard [0.90,0.45,0.37]→0.57
+*Multi-step episode uses max() aggregation: id-medium [1.00,1.00]→1.00, id-hard [0.90,0.90,0.90]→0.90
 
 ### Optimization Roadmap
 
