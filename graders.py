@@ -393,7 +393,7 @@ class IncidentDebugGrader:
         
         # Calculate cumulative reward
         all_scores = previous_scores + [step_reward]
-        cumulative_reward = sum(all_scores) / len(all_scores) if all_scores else step_reward
+        cumulative_reward = max(all_scores) if all_scores else step_reward
         
         # Ensure reward bounds
         cumulative_reward = max(0.0, min(1.0, cumulative_reward))
