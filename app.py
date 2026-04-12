@@ -67,7 +67,7 @@ async def root():
             "docs": "GET /docs"
         },
         "domains": ["data_pipeline", "code_review", "incident_debug"],
-        "tasks": 29
+        "tasks": 9
     }
 
 
