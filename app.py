@@ -420,7 +420,7 @@ async def manifest():
         "difficulty_levels": ["easy", "medium", "hard"],
         "action_space": "Text (code/reviews/diagnoses)",
         "observation_space": "Dict with task_id, domain, difficulty, prompt, context",
-        "reward_range": [0.0, 1.0],
+        "reward_range": [0.01, 0.99],
         "api_endpoints": {
             "reset": {"method": "POST", "path": "/reset", "description": "Start new episode"},
             "step": {"method": "POST", "path": "/step", "description": "Submit action"},
@@ -484,6 +484,17 @@ async def startup_event():
     logger.info("  GET    /docs               - API documentation")
     logger.info("=" * 70)
 
+
+
+# ============================================================================
+# ENTRY POINT FOR SCRIPT
+# ============================================================================
+
+def main():
+    """Entry point for running the server as a callable from entry points."""
+    import uvicorn
+    port = int(os.environ.get("PORT", 7860))
+    uvicorn.run("app:app", host="0.0.0.0", port=port, workers=1)
 
 
 # ── Optional Gradio UI mounted at /ui ────────────────────────────────────────
@@ -559,11 +570,7 @@ if os.getenv("ENABLE_GRADIO_UI", "true").lower() == "true":
         print("ℹ️  Gradio not installed — UI disabled", flush=True)
 
 
-def main():
-    """Entry point - called by openenv validator via app:main"""
+if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 7860))
-    uvicorn.run("app:app", host="0.0.0.0", port=port, workers=1)
-
-if __name__ == "__main__":
-    main()
+    uvicorn.run(app, host="0.0.0.0", port=port, workers=1)
