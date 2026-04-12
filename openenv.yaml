@@ -16,13 +16,13 @@ tags:
   - real-world
   - rl-benchmark
 tasks:
-  - id: easy-solve-001
+  - id: dp-easy-001
     difficulty: easy
     domain: data_pipeline
-  - id: medium-solve-001
+  - id: dp-medium-001
     difficulty: medium
     domain: data_pipeline
-  - id: hard-solve-001
+  - id: dp-hard-001
     difficulty: hard
     domain: data_pipeline
   - id: cr-easy-001
