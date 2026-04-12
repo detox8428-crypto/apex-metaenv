@@ -46,11 +46,17 @@ class DataPipelineGrader:
         total_cases = len(task.get("test_cases", []))
         
         try:
-            # Create execution environment
+            # Create execution environment with all required libraries
+            import datetime, re as _re_module, json, math, collections
             local_vars = {}
             global_vars = {
                 "pd": pd,
-                "import": __import__,
+                "__import__": __import__,
+                "datetime": datetime,
+                "re": _re_module,
+                "json": json,
+                "math": math,
+                "collections": collections,
             }
             
             # Execute code (short timeout)
