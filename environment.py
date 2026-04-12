@@ -250,7 +250,7 @@ class APEXEnvironment:
             reward_info = RewardInfo(
                 session_id=session_id,
                 task_id=task.get("task_id", "unknown"),
-                reward=0.0,
+                reward=0.01,
                 done=False,
                 observation=Observation(
                     session_id=session_id,
