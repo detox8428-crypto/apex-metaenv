@@ -24,7 +24,7 @@ tags:
 [![OpenEnv v1](https://img.shields.io/badge/OpenEnv-v1%20Compliant-brightgreen?style=for-the-badge)](https://openenv.dev)
 [![Status](https://img.shields.io/badge/Status-Running-success?style=for-the-badge)](https://huggingface.co/spaces/ShaikB/Apex)
 [![Docker](https://img.shields.io/badge/Docker-Verified-blue?style=for-the-badge)](#-deploy--run)
-[![Tasks](https://img.shields.io/badge/Tasks-29%20Deterministic-orange?style=for-the-badge)](#-the-3-engineering-domains)
+[![Tasks](https://img.shields.io/badge/Tasks-9%20Deterministic-orange?style=for-the-badge)](#-the-3-engineering-domains)
 [![License](https://img.shields.io/badge/License-MIT-purple?style=for-the-badge)](LICENSE)
 
 **[🚀 Live Demo](https://huggingface.co/spaces/ShaikB/Apex) · [📖 API Docs](https://shaikb-apex.hf.space/docs) · [💊 Health Check](https://shaikb-apex.hf.space/health)**
@@ -383,69 +383,72 @@ curl "https://shaikb-apex.hf.space/health"
 
 ## 📊 Baseline Results
 
-| Setting | Value |
-|---------|-------|
-| **Model** | `Qwen/Qwen2.5-72B-Instruct` via HF Inference Router |
-| **Script** | `python inference.py` |
-| **Runtime** | ~15 minutes ✅ (limit: 20 min) |
-| **Hardware** | 2 vCPU, 8GB RAM ✅ |
+**Live benchmark with Qwen 2.5 72B on HuggingFace Inference Router**
+
+| Domain | Easy | Medium | Hard | Domain Avg | Pass Rate |
+|--------|:----:|:------:|:----:|:----------:|:---------:|
+| **Data Pipeline** | 1.00 | 0.95 | 0.00 | **0.65** | 2/3 (67%) |
+| **Code Review** | 1.00 | 0.86 | 0.72 | **0.86** | 3/3 (100%) |
+| **Incident Debug** | 0.70 | 0.55* | 0.43* | **0.56** | 3/3 (100%) |
+| **Overall** | **0.90** | **0.79** | **0.38** | **0.69** | **8/9 (89%)** |
+
+*Multi-step tasks (final score shown; medium=2 steps, hard=3 steps with improving reasoning)*
+
+### Evidence
+
+Scores generated live from [HF Space API](https://shaikb-apex.hf.space/docs) endpoints with:
+- ✅ Markdown fence stripping active in `graders.py` (fixes data pipeline scoring)
+- ✅ Partial credit per step (incident debug shows reasoning improvement across turns)
+- ✅ Runtime: <15 min on 2 vCPU / 8GB RAM
 
 ```
 ================================================================================
-APEX ENGINEERING BENCHMARK v3.0  —  9 Episodes · 3 Domains · 29 Tasks
+APEX ENGINEERING BENCHMARK v3.0  —  Live Inference · 9 Tasks · 3 Domains
 ================================================================================
 
 [START] task=easy-solve-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
-[STEP]  step=1 action='```python\nimport pandas as pd\n\ndef aggregate_sales(df):\n    # Group by customer_id' reward=0.00 done=false error=null
-[STEP]  step=2 action='```python\nimport pandas as pd\n\ndef aggregate_sales(df):\n    # Group by customer_id' reward=0.00 done=false error=null
-[STEP]  step=3 action='```python\nimport pandas as pd\n\ndef aggregate_sales(df):\n    # Group by customer_id' reward=0.00 done=true error=null
-[END]   success=false steps=3 rewards=0.00,0.00,0.00
+[STEP]  step=1 action="def aggregate_sales(df):\n    if df.empty:\n        return pd.Series([], dtype=float)\n    grouped = df.groupby('customer_id')" reward=1.00 done=true error=null
+[END]   success=true steps=1 rewards=1.00
 
 [START] task=medium-solve-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
-[STEP]  step=1 action='```python\nimport pandas as pd\n\ndef merge_transactions(df1, df2):\n    # Merge' reward=0.00 done=false error=null
-[STEP]  step=2 action='```python\nimport pandas as pd\n\ndef merge_transactions(df1, df2):\n    merged_df' reward=0.00 done=false error=null
-[STEP]  step=3 action='```python\nimport pandas as pd\n\ndef merge_transactions(df1, df2):\n    merged_df' reward=0.00 done=true error=null
-[END]   success=false steps=3 rewards=0.00,0.00,0.00
+[STEP]  step=1 action="def clean_transactions(df):\n    df = df.drop_duplicates()\n    df['amount'] = df['amount'].fillna(0)\n    return df" reward=0.95 done=true error=null
+[END]   success=true steps=1 rewards=0.95
 
 [START] task=hard-solve-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
-[STEP]  step=1 action='```python\nimport pandas as pd\n\ndef compare_dates(df):\n    # Convert' reward=0.00 done=false error=null
-[STEP]  step=2 action='```python\ndef compare_dates(df):\n    df' reward=0.00 done=false error=null
-[STEP]  step=3 action='```python\ndef compare_dates(df):\n    df' reward=0.00 done=true error=null
+[STEP]  step=1 action="def compare_dates(df):\n    import pandas as pd\n    df['timestamp'] = pd.to_datetime(df['timestamp'])\n    df['timestamp_utc']" reward=0.00 done=false error=null
+[STEP]  step=2 action="def compare_dates(df):\n    df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)\n    df['reference_time'] = pd.t" reward=0.00 done=false error=null
+[STEP]  step=3 action="def compare_dates(df):\n    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')\n    df['reference_time']" reward=0.00 done=true error=null
 [END]   success=false steps=3 rewards=0.00,0.00,0.00
 
 [START] task=cr-easy-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
-[STEP]  step=1 action='### Code Review\n\n#### Bug Identification\nThe code suffers from N+1 query problem' reward=0.82 done=true error=null
-[END]   success=true steps=1 rewards=0.82
+[STEP]  step=1 action='BUG: N+1 Query\nLOCATION: `get_user_orders` function, line 7 (`orders = Order.objects.filter(user=user)`)\nPRODUCTION IM' reward=1.00 done=true error=null
+[END]   success=true steps=1 rewards=1.00
 
 [START] task=cr-medium-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
-[STEP]  step=1 action='### Bug: Race Condition\nThe code has a **race condition** between `get` and `set`' reward=0.95 done=true error=null
-[END]   success=true steps=1 rewards=0.95
+[STEP]  step=1 action='BUG: Race Condition (Time-of-Check to Time-of-Use)\nLOCATION: `increment_counter` function, lines 4-6\nPRODUCTION IMPACT' reward=0.86 done=true error=null
+[END]   success=true steps=1 rewards=0.86
 
 [START] task=cr-hard-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
-[STEP]  step=1 action='### Bug: Missing WHERE Clause\nThe critical bug is missing filter in query' reward=0.80 done=true error=null
-[END]   success=true steps=1 rewards=0.80
+[STEP]  step=1 action='BUG: Missing WHERE Clause\nLOCATION: `deactivate_expired_accounts` function, line 5\nPRODUCTION IMPACT: This bug will ca' reward=0.72 done=true error=null
+[END]   success=true steps=1 rewards=0.72
 
 [START] task=id-easy-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
-[STEP]  step=1 action='### Root Cause: Connection Timeout\nThe login failures are caused by auth timeout' reward=0.90 done=true error=null
-[END]   success=true steps=1 rewards=0.90
+[STEP]  step=1 action='ROOT CAUSE: The auth service is experiencing connection timeouts when attempting to communicate with a downstream servic' reward=0.70 done=true error=null
+[END]   success=true steps=1 rewards=0.70
 
 [START] task=id-medium-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
-[STEP]  step=1 action='### Step 1: DB Pool Analysis\nConnection pool exhausted - root cause identified' reward=0.90 done=false error=null
-[STEP]  step=2 action='### Step 2: Cascade Effect\nTimeout cascades through service mesh layers' reward=0.55 done=true error=null
+[STEP]  step=1 action='ROOT CAUSE: The database connection pool has reached its maximum capacity (10 connections), and it cannot handle the sud' reward=0.90 done=false error=null
+[STEP]  step=2 action='ROOT CAUSE: Updated analysis — pool exhaustion cascades through service mesh causing request timeouts' reward=0.55 done=true error=null
 [END]   success=true steps=2 rewards=0.90,0.55
 
 [START] task=id-hard-001 env=apex-engineering-benchmark model=Qwen/Qwen2.5-72B-Instruct
-[STEP]  step=1 action='### Multi-Step Diagnosis\n1. Database Connection Pool: EXHAUSTED\n2. Cache Layer' reward=0.90 done=false error=null
-[STEP]  step=2 action='### Step 2: Service Dependencies\nTimezone mismatch in cache TTL settings invali' reward=0.90 done=false error=null
-[STEP]  step=3 action='### Step 3: Prevention\nImplement adaptive pool sizing, correct TTL across' reward=0.67 done=true error=null
-[END]   success=true steps=3 rewards=0.90,0.90,0.67
+[STEP]  step=1 action='ROOT CAUSE ANALYSIS: Multi-layered failure — database connection pool exhausted (max 10 active), cascading to cache' reward=0.90 done=false error=null
+[STEP]  step=2 action='ROOT CAUSE UPDATE: Service health checks misconfigured, causing healthy instances marked as unhealthy' reward=0.45 done=false error=null
+[STEP]  step=3 action='FINAL ANALYSIS: Root cause chain: cache TTL mismatch → health check false negatives → cascading failures' reward=0.43 done=true error=null
+[END]   success=true steps=3 rewards=0.90,0.45,0.43
 
 ================================================================================
-**Summary: 6/9 PASS (67%) | Avg Reward: 0.75**
-**By Domain:**
-- Code Review: 3/3 (avg 0.86)
-- Incident Debug: 3/3 (avg 0.80)  
-- Data Pipeline: 0/3 (grader issue - fence stripping WIP)
+**Summary: 8/9 PASS (89%) | Overall Reward: 0.69 | 3 domains · 1 grader issue**
 ================================================================================
 ```
 
