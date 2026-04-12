@@ -75,12 +75,10 @@ def build_prompt(obs: dict, domain: str, step: int) -> tuple[str, str]:
         examples = obs.get("examples", "")
         constraints = obs.get("constraints", "")
         desc     = obs.get("description", "")
-        data     = obs.get("data_sample", "")
+        data_sample = obs.get("data_sample", "")
         fb       = obs.get("feedback", "")
 
-        user = f"TASK:\n{desc}\n\nFUNCTION SIGNATURE TO IMPLEMENT:\n{sig}"
-        if data:
-            user += f"\n\nSAMPLE INPUT DATA:\n{data}"
+        user = f"TASK:\n{desc}\n\nSAMPLE DATA (CSV):\n{data_sample}\n\nIMPLEMENT THIS FUNCTION:\n{sig}"
         if examples:
             user += f"\n\nEXAMPLES:\n{examples}"
         if constraints:
