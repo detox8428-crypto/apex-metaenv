@@ -112,6 +112,12 @@ class StepResponse(BaseModel):
     @field_validator('info', mode='before')
     @classmethod
     def clamp_info_scores(cls, v):
-        if isinstance(v, dict) and 'step_scores' in v:
-            v['step_scores'] = [round(max(0.02, min(0.98, float(s))), 4) for s in v['step_scores']]
+        if isinstance(v, dict):
+            # Clamp ALL numeric reward fields inside info
+            if 'reward' in v:
+                v['reward'] = round(max(0.02, min(0.98, float(v['reward']))), 4)
+            if 'rewards' in v:
+                v['rewards'] = [round(max(0.02, min(0.98, float(r))), 4) for r in v['rewards']]
+            if 'step_scores' in v:
+                v['step_scores'] = [round(max(0.02, min(0.98, float(s))), 4) for s in v['step_scores']]
         return v
