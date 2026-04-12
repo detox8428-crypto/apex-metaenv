@@ -17,15 +17,15 @@ TEMP       = 0.1          # lower = more deterministic = fewer silly bugs
 MAX_TOKENS = 1024
 
 TASKS = [
-    {"task_id": "easy-solve-001",   "domain": "data_pipeline",  "difficulty": "easy"},
-    {"task_id": "medium-solve-001", "domain": "data_pipeline",  "difficulty": "medium"},
-    {"task_id": "hard-solve-001",   "domain": "data_pipeline",  "difficulty": "hard"},
-    {"task_id": "cr-easy-001",      "domain": "code_review",    "difficulty": "easy"},
-    {"task_id": "cr-medium-001",    "domain": "code_review",    "difficulty": "medium"},
-    {"task_id": "cr-hard-001",      "domain": "code_review",    "difficulty": "hard"},
-    {"task_id": "id-easy-001",      "domain": "incident_debug", "difficulty": "easy"},
-    {"task_id": "id-medium-001",    "domain": "incident_debug", "difficulty": "medium"},
-    {"task_id": "id-hard-001",      "domain": "incident_debug", "difficulty": "hard"},
+    {"task_id": "dp-easy-001",   "domain": "data_pipeline",  "difficulty": "easy"},
+    {"task_id": "dp-medium-001", "domain": "data_pipeline",  "difficulty": "medium"},
+    {"task_id": "dp-hard-001",   "domain": "data_pipeline",  "difficulty": "hard"},
+    {"task_id": "cr-easy-001",   "domain": "code_review",    "difficulty": "easy"},
+    {"task_id": "cr-medium-001", "domain": "code_review",    "difficulty": "medium"},
+    {"task_id": "cr-hard-001",   "domain": "code_review",    "difficulty": "hard"},
+    {"task_id": "id-easy-001",   "domain": "incident_debug", "difficulty": "easy"},
+    {"task_id": "id-medium-001", "domain": "incident_debug", "difficulty": "medium"},
+    {"task_id": "id-hard-001",   "domain": "incident_debug", "difficulty": "hard"},
 ]
 
 # ── System prompts per domain ─────────────────────────────────────────────────
@@ -158,13 +158,14 @@ def log_step(step: int, action: str, reward: float, done: bool, error):
     a = repr(action.replace("\n", "\\n")[:120])
     d = "true" if done else "false"
     e = "null" if error is None else str(error)
-    print(f"[STEP]  step={step} action={a} reward={reward:.4f} done={d} error={e}", flush=True)
+    print(f"[STEP] step={step} action={a} reward={reward:.2f} done={d} error={e}", flush=True)
 
 def log_end(success: bool, steps: int, rewards: list):
-    s = "true" if success else "false"
     clamped = [max(0.001, min(0.999, float(x))) for x in rewards]
-    r = ",".join(f"{x:.4f}" for x in clamped)
-    print(f"[END]   success={s} steps={steps} rewards={r}", flush=True)
+    score   = sum(clamped) / len(clamped) if clamped else 0.001
+    s       = "true" if success else "false"
+    r       = ",".join(f"{x:.2f}" for x in clamped)
+    print(f"[END] success={s} steps={steps} score={score:.3f} rewards={r}", flush=True)
 
 
 # ── Episode runner ────────────────────────────────────────────────────────────
