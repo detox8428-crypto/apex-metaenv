@@ -145,7 +145,7 @@ def increment_counter(key, redis_client):
     redis_client.set(key, count + 1)
     return count + 1
         ''',
-        "expected_production_keywords": ["race", "concurrent", "atomic", "users", "lost", "count", "incorrect"],
+        "expected_production_keywords": ["race", "concurrent", "atomic", "users", "count", "lost update", "consistency"],
         "expected_fix_keywords": ["INCR", "atomic", "lock", "transaction"],
         "max_steps": 1
     },
@@ -223,7 +223,7 @@ INCIDENT_DEBUG_TASKS = {
                     "[15:00:35] CRITICAL: Retry storm detected!\n"
                     "[15:00:40] ERROR: 50,000 retry requests/sec flooding database"
                 ),
-                "expected_keywords": ["retry", "storm", "cascade", "flood", "backoff"]
+                "expected_keywords": ["retry", "storm", "cascading", "flooding", "backoff"]
             }
         ]
     },

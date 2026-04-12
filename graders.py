@@ -367,10 +367,12 @@ class IncidentDebugGrader:
         # Find keywords in response using word-level matching (more flexible)
         keywords_found = []
         for kw in expected_kw:
-            kw_words = set(kw.lower().split())
-            diagnosis_words = set(diagnosis_lower.split())
-            # Match if all words of keyword are present in diagnosis
-            if kw_words.issubset(diagnosis_words):
+            kw_lower = kw.lower()
+            # Substring match catches stemmed forms (cascade->cascading, hammer->hammering)
+            if kw_lower in diagnosis_lower:
+                keywords_found.append(kw)
+            # Fallback: word-set match for multi-word phrases in different order
+            elif set(kw_lower.split()).issubset(set(diagnosis_lower.split())):
                 keywords_found.append(kw)
         
         if expected_kw:
