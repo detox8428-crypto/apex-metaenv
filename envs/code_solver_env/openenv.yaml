@@ -1,7 +1,0 @@
-spec_version: 1
-name: code-solver-env
-description: "RL environment where an AI agent solves coding problems (LeetCode-style) by writing Python code that is executed against test cases"
-type: rl-environment
-runtime: docker
-app: server/app.py
-port: 8000
