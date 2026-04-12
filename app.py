@@ -223,16 +223,16 @@ async def step_env(request: StepRequest):
             f"step={info.get('step')} reward={reward:.2f} done={done}"
         )
         
-        return {
-            "session_id": session_id,
-            "observation": observation,
-            "reward": reward,
-            "done": done,
-            "passed_cases": info.get("passed_cases"),
-            "total_cases": info.get("total_cases"),
-            "feedback": info.get("feedback", ""),
-            "info": info
-        }
+        return StepResponse(
+            session_id=session_id,
+            observation=observation,
+            reward=reward,
+            done=done,
+            passed_cases=info.get("passed_cases"),
+            total_cases=info.get("total_cases"),
+            feedback=info.get("feedback", ""),
+            info=info
+        )
     except HTTPException:
         raise
     except Exception as e:
