@@ -1,6 +1,6 @@
 ---
 title: APEX Engineering Benchmark
-emoji: ???
+emoji: 🏗
 colorFrom: purple
 colorTo: blue
 sdk: docker
@@ -159,4 +159,4 @@ python inference.py
 
 ---
 
-*Built for the Meta � HuggingFace OpenEnv Bootcamp 2026*
+By Team APEX 
