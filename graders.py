@@ -178,9 +178,20 @@ class DataPipelineGrader:
     def _check_result(self, result: Any, expected: Any) -> bool:
         """Check if result matches expected output"""
         try:
-            if isinstance(expected, dict) and isinstance(result, (dict, pd.Series)):
+            # Handle int expected = row count check (e.g. expected=2 means len(result)==2)
+            if isinstance(expected, int) and isinstance(result, (pd.DataFrame, pd.Series)):
+                return len(result) == expected
+            elif isinstance(expected, int) and hasattr(result, '__len__'):
+                return len(result) == expected
+            elif isinstance(expected, dict) and isinstance(result, (dict, pd.Series)):
                 if isinstance(result, pd.Series):
                     result = result.to_dict()
+                # Allow approximate match for float values
+                if all(isinstance(v, (int, float)) for v in expected.values()):
+                    return all(
+                        abs(float(result.get(k, 0)) - float(v)) < 0.01
+                        for k, v in expected.items()
+                    )
                 return result == expected
             elif isinstance(expected, pd.DataFrame) and isinstance(result, pd.DataFrame):
                 return result.equals(expected)

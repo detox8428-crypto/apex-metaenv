@@ -336,22 +336,22 @@ async def list_tasks():
     GET /tasks
     """
     return {
-        "total_tasks": 29,
+        "total_tasks": 9,
         "domains": {
             "data_pipeline": {
                 "description": "Fix broken data pipelines in production",
                 "difficulties": ["easy", "medium", "hard"],
-                "tasks": 10
+                "tasks": 3
             },
             "code_review": {
                 "description": "Review code at scale and identify bugs",
                 "difficulties": ["easy", "medium", "hard"],
-                "tasks": 10
+                "tasks": 3
             },
             "incident_debug": {
                 "description": "Diagnose and fix production incidents",
                 "difficulties": ["easy", "medium", "hard"],
-                "tasks": 9
+                "tasks": 3
             }
         },
         "reset_endpoint": "POST /reset?domain={domain}&difficulty={difficulty}&mode=solve",
@@ -415,7 +415,7 @@ async def manifest():
         "spec": "openenv/v1",
         "title": "APEX Engineering Benchmark",
         "description": "RL environment for training agents to think like senior engineers",
-        "total_tasks": 29,
+        "total_tasks": 9,
         "domains": ["data_pipeline", "code_review", "incident_debug"],
         "difficulty_levels": ["easy", "medium", "hard"],
         "action_space": "Text (code/reviews/diagnoses)",

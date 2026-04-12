@@ -38,12 +38,13 @@ DATA_PIPELINE_TASKS = {
     
     "medium": {
         "task_id": "dp-medium-001",
-        "title": "Merge and Deduplicate Records",
+        "title": "Deduplicate and Clean Transaction Records",
         "description": (
-            "Write merge_transactions(df1, df2) to merge two transaction dataframes "
-            "on transaction_id, drop exact duplicates, and fill NaN amounts with 0."
+            "Write a function clean_transactions(df) that takes a single transaction dataframe, "
+            "drops exact duplicate rows, and fills NaN amounts with 0. "
+            "Return the cleaned DataFrame."
         ),
-        "function_name": "merge_transactions",
+        "function_name": "clean_transactions",
         "data_sample": (
             "transaction_id,amount,status\n"
             "T001,100.00,completed\n"

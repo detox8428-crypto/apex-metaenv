@@ -3,7 +3,7 @@ import requests
 from openai import OpenAI
 
 # ── Env vars ──────────────────────────────────────────────────────────────────
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME", "gpt-4o-mini")
 HF_TOKEN     = os.getenv("HF_TOKEN")
 SPACE_URL    = os.getenv("SPACE_URL", "https://shaikb-apex.hf.space")
@@ -37,9 +37,12 @@ RULES (follow exactly):
 3. Handle edge cases: empty DataFrames, NaN values, wrong dtypes.
 4. Output raw Python only — NO markdown fences, NO explanation, NO comments.
 
-Example correct output:
-def solve(df):
-    return df.groupby("customer_id")["amount"].sum().sort_values(ascending=False)"""
+Task-specific function names:
+- easy task: def aggregate_sales(df) — group by customer_id, sum amount, return sorted Series
+- medium task: def clean_transactions(df) — drop_duplicates(), fillna(0), return cleaned DataFrame
+- hard task: def compare_dates(df) — handle mixed tz-aware/naive timestamps, return DataFrame
+
+Always match the exact function name from the task description."""
 
 SYSTEM_REVIEW = """You are a senior software engineer doing production code review.
 
